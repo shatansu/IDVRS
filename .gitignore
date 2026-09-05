@@ -1,0 +1,5 @@
+
+.env
+venv
+sample_docs
+__pycache__/
