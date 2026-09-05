@@ -3,3 +3,5 @@
 venv
 sample_docs
 __pycache__/
+uploads
+.venv-phase3

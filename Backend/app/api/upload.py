@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Document, SourceModeEnum, ProcessingStatusEnum
 from app.pipeline.extractor import extract_document
+from app.pipeline.field_extractor import extract_fields
+from app.pipeline.validator import validate_extraction
 from app.config import BASE_DIR
 
 logger = logging.getLogger("app.api.upload")
@@ -39,8 +41,9 @@ async def upload_document(
 ):
     """
     Uploads a land record document (PDF/image), detects whether it is a
-    digital-native PDF or scanned file, runs text extraction, saves the record
-    to the MySQL database, and returns the raw extracted text with metadata.
+    digital-native PDF or scanned file, runs text extraction, field extraction
+    (Phase 3), validation rules (Phase 4), saves the document record to MySQL,
+    and returns the full structured result including validation warnings.
     """
     filename = file.filename or "uploaded_document"
     ext = Path(filename).suffix.lower()
@@ -66,6 +69,14 @@ async def upload_document(
         extraction_result = extract_document(str(saved_path))
         doc_type = infer_document_type(extraction_result["full_text"])
 
+        # Phase 3: Run field extraction (regex + rule-based)
+        structured_data = extract_fields(extraction_result["full_text"], doc_type)
+
+        # Phase 4: Run validation rules (including DB duplicate check)
+        validation_result = validate_extraction(structured_data, db)
+        # Attach validation to structured_data so it travels together
+        structured_data["validation"] = validation_result
+
         # Persist document metadata and raw extracted text to MySQL
         source_mode_val = SourceModeEnum.digital_text if extraction_result["source_mode"] == "digital_text" else SourceModeEnum.ocr
 
@@ -81,7 +92,12 @@ async def upload_document(
         db.commit()
         db.refresh(doc_record)
 
-        logger.info(f"Document saved to DB with ID={doc_record.id}, source_mode={doc_record.source_mode.value}")
+        logger.info(
+            f"Document saved to DB with ID={doc_record.id}, "
+            f"source_mode={doc_record.source_mode.value}, "
+            f"validation_passed={validation_result['passed']}, "
+            f"is_duplicate={validation_result['is_duplicate']}"
+        )
 
         return {
             "document_id": doc_record.id,
@@ -93,7 +109,9 @@ async def upload_document(
             "average_confidence": extraction_result["average_confidence"],
             "raw_text": extraction_result["full_text"],
             "page_texts": extraction_result["page_texts"],
-            "processing_status": doc_record.processing_status.value
+            "processing_status": doc_record.processing_status.value,
+            # Phase 3+4: structured extraction + validation result
+            "structured_data": structured_data,
         }
 
     except Exception as exc:

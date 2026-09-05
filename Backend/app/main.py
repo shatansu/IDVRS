@@ -10,6 +10,7 @@ from app.config import settings
 from app.database import engine, get_db, check_db_connection
 from app.init_db import create_database_if_not_exists, init_tables
 from app.api.upload import router as upload_router
+from app.api.records import router as records_router
 
 # Setup logging
 logging.basicConfig(
@@ -46,6 +47,7 @@ app.add_middleware(
 
 # Register routers
 app.include_router(upload_router)
+app.include_router(records_router)
 
 @app.get("/", tags=["General"])
 def root():
@@ -75,5 +77,5 @@ def ping(db: Session = Depends(get_db)):
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "database": db_status,
         "tables": tables,
-        "phase": "Phase 2 - OCR Pipeline & File Upload"
+        "phase": "Phase 5 - Frontend Upload + Review + Save Records"
     }
