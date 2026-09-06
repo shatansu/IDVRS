@@ -269,7 +269,7 @@ export default function ReviewPage() {
           </div>
 
           {fileUrl ? (
-            fileType === 'application/pdf' ? (
+            (fileType === 'application/pdf' || filename?.toLowerCase().endsWith('.pdf')) ? (
               <iframe
                 src={fileUrl}
                 title="Document Preview"
