@@ -4,11 +4,14 @@ import axios from 'axios';
 import {
   Server, Database, Table, CheckCircle2, XCircle,
   RefreshCw, Clock, ShieldCheck, FileText, Layers,
-  UploadCloud, Eye
+  UploadCloud, Eye, BarChart2, List
 } from 'lucide-react';
 
-import UploadPage from './pages/UploadPage';
-import ReviewPage from './pages/ReviewPage';
+import UploadPage         from './pages/UploadPage';
+import ReviewPage         from './pages/ReviewPage';
+import RecordsPage        from './pages/RecordsPage';
+import RecordDetailPage   from './pages/RecordDetailPage';
+import DashboardPage      from './pages/DashboardPage';
 
 /* ── Health-check page (Phase 1 original) ──────────────────── */
 function HealthPage() {
@@ -56,7 +59,7 @@ function HealthPage() {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
               <span style={{ background: 'rgba(99,102,241,0.15)', color: '#818cf8', fontSize: '0.75rem', fontWeight: 700, padding: '4px 10px', borderRadius: '999px', border: '1px solid rgba(99,102,241,0.3)', letterSpacing: '0.05em' }}>SIH 26018 • DO&LR</span>
-              <span style={{ background: 'rgba(16,185,129,0.15)', color: '#34d399',  fontSize: '0.75rem', fontWeight: 700, padding: '4px 10px', borderRadius: '999px', border: '1px solid rgba(16,185,129,0.3)',  letterSpacing: '0.05em' }}>PHASE 5 ACTIVE</span>
+              <span style={{ background: 'rgba(16,185,129,0.15)', color: '#34d399',  fontSize: '0.75rem', fontWeight: 700, padding: '4px 10px', borderRadius: '999px', border: '1px solid rgba(16,185,129,0.3)',  letterSpacing: '0.05em' }}>PHASE 6 ACTIVE</span>
             </div>
             <h1 style={{ fontSize: '2rem', fontWeight: 800, letterSpacing: '-0.02em', color: '#f3f4f6' }}>
               Intelligent Land Record Digitization & Validation
@@ -187,14 +190,17 @@ function Layout({ children }) {
         <span style={{ fontWeight: 800, fontSize: '0.9rem', color: '#818cf8', marginRight: 16, letterSpacing: '-0.01em' }}>
           IDVRS
         </span>
-        <NavLink to="/"       className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>
+        <NavLink to="/"          className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>
           <Server size={14} /> Health
         </NavLink>
-        <NavLink to="/upload" className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>
+        <NavLink to="/upload"     className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>
           <UploadCloud size={14} /> Upload
         </NavLink>
-        <NavLink to="/review" className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')} style={{ pointerEvents: 'none', opacity: 0.4 }}>
-          <Eye size={14} /> Review
+        <NavLink to="/records"    className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>
+          <List size={14} /> Records
+        </NavLink>
+        <NavLink to="/dashboard"  className={({ isActive }) => 'nav-link' + (isActive ? ' active' : '')}>
+          <BarChart2 size={14} /> Dashboard
         </NavLink>
       </nav>
       {children}
@@ -208,10 +214,13 @@ export default function App() {
     <BrowserRouter>
       <Layout>
         <Routes>
-          <Route path="/"       element={<HealthPage />} />
-          <Route path="/upload" element={<UploadPage />} />
-          <Route path="/review" element={<ReviewPage />} />
-          <Route path="*"       element={<Navigate to="/" replace />} />
+          <Route path="/"               element={<HealthPage />} />
+          <Route path="/upload"         element={<UploadPage />} />
+          <Route path="/review"         element={<ReviewPage />} />
+          <Route path="/records"         element={<RecordsPage />} />
+          <Route path="/records/:id"     element={<RecordDetailPage />} />
+          <Route path="/dashboard"       element={<DashboardPage />} />
+          <Route path="*"               element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>
     </BrowserRouter>

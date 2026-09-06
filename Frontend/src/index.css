@@ -277,3 +277,12 @@ body {
   border-top-color: #6366f1;
   animation: spin 0.8s linear infinite;
 }
+
+/* ── Clickable table rows ────────────────────────────────── */
+.data-table tbody tr.clickable { cursor: pointer; }
+.data-table tbody tr:hover td { background: rgba(99,102,241,0.05) !important; }
+
+/* ── Chart container (Recharts) ─────────────────────────── */
+.recharts-cartesian-axis-tick-value { fill: #6b7280 !important; }
+.recharts-tooltip-wrapper { outline: none !important; }
+
