@@ -3,79 +3,90 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import {
   Search, FileText, AlertTriangle, CheckCircle2,
-  Clock, Copy, ChevronRight, RefreshCw, Loader2, X, Users, Layers
+  Clock, Copy, ChevronRight, RefreshCw, Loader2,
+  Download, Filter, Users, Layers, ShieldCheck, X
 } from 'lucide-react';
 
 /* ── Status Badge ──────────────────────────────────────────── */
 function StatusBadge({ status, isDuplicate }) {
   if (isDuplicate) {
     return (
-      <span style={{
-        display: 'inline-flex', alignItems: 'center', gap: 4,
-        fontSize: '0.7rem', fontWeight: 700,
-        padding: '3px 8px', borderRadius: '999px',
-        background: 'rgba(244,63,94,0.12)', color: '#f43f5e',
-        border: '1px solid rgba(244,63,94,0.3)', whiteSpace: 'nowrap'
-      }}>
-        <Copy size={10} /> Duplicate
+      <span className="gov-badge duplicate">
+        <Copy size={11} /> संभावित दोहराव (Duplicate)
       </span>
     );
   }
   if (status === 'verified') {
     return (
-      <span style={{
-        display: 'inline-flex', alignItems: 'center', gap: 4,
-        fontSize: '0.7rem', fontWeight: 700,
-        padding: '3px 8px', borderRadius: '999px',
-        background: 'rgba(16,185,129,0.12)', color: '#10b981',
-        border: '1px solid rgba(16,185,129,0.3)', whiteSpace: 'nowrap'
-      }}>
-        <CheckCircle2 size={10} /> Verified
+      <span className="gov-badge verified">
+        <CheckCircle2 size={11} /> सत्यापित (Verified)
       </span>
     );
   }
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 4,
-      fontSize: '0.7rem', fontWeight: 700,
-      padding: '3px 8px', borderRadius: '999px',
-      background: 'rgba(245,158,11,0.12)', color: '#f59e0b',
-      border: '1px solid rgba(245,158,11,0.3)', whiteSpace: 'nowrap'
-    }}>
-      <Clock size={10} /> Pending
+    <span className="gov-badge pending">
+      <Clock size={11} /> समीक्षाधीन (Pending)
     </span>
   );
 }
 
-/* ── Empty State ─────────────────────────────────────────── */
-function EmptyState({ filtered }) {
-  return (
-    <tr>
-      <td colSpan={9} style={{ padding: '60px 20px', textAlign: 'center', color: '#6b7280' }}>
-        <FileText size={40} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
-        <p style={{ fontWeight: 600, marginBottom: 4 }}>
-          {filtered ? 'No records match your search' : 'No records saved yet'}
-        </p>
-        <p style={{ fontSize: '0.85rem' }}>
-          {filtered ? 'Try a different village or district filter.' : 'Upload a document to get started.'}
-        </p>
-      </td>
-    </tr>
-  );
+/* ── CSV Export Function ───────────────────────────────────── */
+function exportRecordsToCSV(records) {
+  if (!records || records.length === 0) {
+    alert('डाउनलोड करने हेतु कोई रिकॉर्ड उपलब्ध नहीं है।');
+    return;
+  }
+
+  const headers = [
+    'ID', 'Khata_Number', 'CLRM_No', 'Village', 'Tehsil',
+    'District', 'State', 'Fasli_Year', 'Review_Status',
+    'Is_Duplicate', 'Owner_Count', 'Parcel_Count', 'Primary_Owner', 'Created_At'
+  ];
+
+  const rows = records.map(r => [
+    r.id,
+    `"${r.khata_number || ''}"`,
+    `"${r.clrm_no || ''}"`,
+    `"${r.village || ''}"`,
+    `"${r.tehsil || ''}"`,
+    `"${r.district || ''}"`,
+    `"${r.state || ''}"`,
+    `"${r.fasli_year || ''}"`,
+    r.review_status,
+    r.is_duplicate_flag ? 'YES' : 'NO',
+    r.owner_count,
+    r.parcel_count,
+    `"${r.primary_owner || ''}"`,
+    r.created_at || ''
+  ]);
+
+  const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' +
+    [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement('a');
+  link.setAttribute('href', encodedUri);
+  link.setAttribute('download', `IDVRS_Land_Records_Export_${new Date().toISOString().slice(0, 10)}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
 
-/* ── Main RecordsPage ───────────────────────────────────── */
+/* ── Main RecordsPage ──────────────────────────────────────── */
 export default function RecordsPage() {
   const navigate = useNavigate();
 
-  const [records, setRecords]     = useState([]);
-  const [total,   setTotal]       = useState(0);
-  const [loading, setLoading]     = useState(false);
-  const [error,   setError]       = useState(null);
-  const [village, setVillage]     = useState('');
-  const [district, setDistrict]   = useState('');
-  const [searchVillage, setSearchVillage]   = useState('');
+  const [records, setRecords] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  /* Filters */
+  const [searchVillage, setSearchVillage] = useState('');
   const [searchDistrict, setSearchDistrict] = useState('');
+  const [activeVillage, setActiveVillage] = useState('');
+  const [activeDistrict, setActiveDistrict] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all'); // all, verified, pending, duplicate
   const [updatingId, setUpdatingId] = useState(null);
 
   const fetchRecords = useCallback(async (v = '', d = '') => {
@@ -83,32 +94,35 @@ export default function RecordsPage() {
     setError(null);
     try {
       const params = {};
-      if (v) params.village  = v;
+      if (v) params.village = v;
       if (d) params.district = d;
       const res = await axios.get('/api/records', { params, timeout: 10000 });
       setRecords(res.data.records || []);
       setTotal(res.data.total || 0);
     } catch (err) {
-      setError(err.response?.data?.detail || err.message || 'Failed to load records.');
+      setError(err.response?.data?.detail || err.message || 'भू-अभिलेख सूची लोड करने में असमर्थ।');
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { fetchRecords(); }, [fetchRecords]);
+  useEffect(() => {
+    fetchRecords();
+  }, [fetchRecords]);
 
   const handleSearch = (e) => {
     e.preventDefault();
-    setVillage(searchVillage);
-    setDistrict(searchDistrict);
+    setActiveVillage(searchVillage);
+    setActiveDistrict(searchDistrict);
     fetchRecords(searchVillage, searchDistrict);
   };
 
   const clearFilters = () => {
     setSearchVillage('');
     setSearchDistrict('');
-    setVillage('');
-    setDistrict('');
+    setActiveVillage('');
+    setActiveDistrict('');
+    setStatusFilter('all');
     fetchRecords('', '');
   };
 
@@ -121,174 +135,316 @@ export default function RecordsPage() {
         prev.map(r => r.id === rec.id ? { ...r, review_status: newStatus } : r)
       );
     } catch {
-      /* ignore */
+      alert('स्थिति अद्यतन करने में विफलता हुई।');
     } finally {
       setUpdatingId(null);
     }
   };
 
-  const isFiltered = !!(village || district);
+  /* Filter in memory by status tab */
+  const filteredRecords = records.filter(r => {
+    if (statusFilter === 'verified') return r.review_status === 'verified';
+    if (statusFilter === 'pending') return r.review_status === 'pending_review';
+    if (statusFilter === 'duplicate') return r.is_duplicate_flag;
+    return true;
+  });
 
-  /* ── Render ───────────────────────────────────────────── */
+  const isFiltered = !!(activeVillage || activeDistrict || statusFilter !== 'all');
+
   return (
-    <div style={{ minHeight: '100vh', padding: '28px 20px' }}>
-      <div style={{ maxWidth: 1400, margin: '0 auto' }}>
+    <div style={{ maxWidth: '1440px', margin: '0 auto', padding: '32px 24px 60px' }}>
 
-        {/* Header */}
-        <div style={{ marginBottom: 24, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-          <div>
-            <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: '#f3f4f6', letterSpacing: '-0.02em' }}>
-              Records
-            </h1>
-            <p style={{ color: '#6b7280', fontSize: '0.85rem', marginTop: 3 }}>
-              {total} khata record{total !== 1 ? 's' : ''} in database
-              {isFiltered && ` · filtered`}
-            </p>
+      {/* 1. Header & Title Bar */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'flex-start',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '16px',
+        marginBottom: '24px',
+        background: '#ffffff',
+        padding: '24px 28px',
+        borderRadius: '12px',
+        border: '1px solid var(--border-card)',
+        boxShadow: 'var(--shadow-sm)'
+      }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+            <span className="gov-badge info">
+              <ShieldCheck size={12} /> आधिकारिक लैंड रिकॉर्ड रजिस्ट्री
+            </span>
+            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+              • कुल {total} पंजीकृत खाते (MySQL)
+            </span>
           </div>
-          <button className="btn-primary" onClick={() => navigate('/upload')}>
-            + Upload Document
-          </button>
+          <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em', margin: 0 }}>
+            राष्ट्रीय भू-अभिलेख पंजिका (Land Records Registry)
+          </h1>
+          <p style={{ color: '#475569', fontSize: '0.9rem', marginTop: '4px' }}>
+            डिजिटाइज्ड खातों की आधिकारिक सूची, सह-खातेदारों का विवरण एवं सत्यापित खसरों का केंद्रीय भंडार
+          </p>
         </div>
 
-        {/* Search / filter bar */}
-        <form onSubmit={handleSearch} style={{ marginBottom: 20, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-          <div style={{ position: 'relative', flex: '1 1 180px', minWidth: 160 }}>
-            <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#6b7280', pointerEvents: 'none' }} />
-            <input
-              id="filter-village"
-              className="form-input"
-              style={{ paddingLeft: 32 }}
-              placeholder="Filter by village…"
-              value={searchVillage}
-              onChange={e => setSearchVillage(e.target.value)}
-            />
-          </div>
-          <div style={{ position: 'relative', flex: '1 1 180px', minWidth: 160 }}>
-            <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#6b7280', pointerEvents: 'none' }} />
-            <input
-              id="filter-district"
-              className="form-input"
-              style={{ paddingLeft: 32 }}
-              placeholder="Filter by district…"
-              value={searchDistrict}
-              onChange={e => setSearchDistrict(e.target.value)}
-            />
-          </div>
-          <button type="submit" className="btn-primary" style={{ padding: '9px 20px' }}>
-            <Search size={14} /> Search
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <button
+            type="button"
+            className="btn-gov-secondary"
+            onClick={() => exportRecordsToCSV(records)}
+            title="CSV प्रारूप में डाउनलोड करें"
+          >
+            <Download size={15} /> CSV निर्यात करें (Export)
           </button>
-          {isFiltered && (
-            <button type="button" className="btn-ghost" onClick={clearFilters} style={{ padding: '9px 14px' }}>
-              <X size={14} /> Clear
+          <button
+            type="button"
+            className="btn-gov-primary"
+            onClick={() => navigate('/upload')}
+          >
+            + नया दस्तावेज़ जोड़ें
+          </button>
+        </div>
+      </div>
+
+      {/* 2. Search & Filter Bar */}
+      <div className="gov-card" style={{ padding: '16px 20px', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+
+          {/* Status Tabs */}
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+            {[
+              { id: 'all', label: 'सभी अभिलेख (All)', count: records.length },
+              { id: 'verified', label: 'सत्यापित (Verified)', count: records.filter(r => r.review_status === 'verified').length },
+              { id: 'pending', label: 'समीक्षाधीन (Pending)', count: records.filter(r => r.review_status === 'pending_review').length },
+              { id: 'duplicate', label: 'दोहराव अलर्ट (Duplicate)', count: records.filter(r => r.is_duplicate_flag).length },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setStatusFilter(tab.id)}
+                style={{
+                  background: statusFilter === tab.id ? '#1e3a8a' : '#f1f5f9',
+                  color: statusFilter === tab.id ? '#ffffff' : '#475569',
+                  border: '1px solid',
+                  borderColor: statusFilter === tab.id ? '#1e3a8a' : '#e2e8f0',
+                  padding: '6px 14px',
+                  borderRadius: '8px',
+                  fontSize: '0.825rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <span>{tab.label}</span>
+                <span style={{
+                  fontSize: '0.725rem',
+                  background: statusFilter === tab.id ? 'rgba(255,255,255,0.2)' : '#e2e8f0',
+                  color: statusFilter === tab.id ? '#ffffff' : '#64748b',
+                  borderRadius: '999px',
+                  padding: '1px 6px',
+                  fontFamily: 'var(--font-mono)'
+                }}>
+                  {tab.count}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {/* Search Inputs */}
+          <form onSubmit={handleSearch} style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', flex: '1 1 340px', justifyContent: 'flex-end' }}>
+            <div style={{ minWidth: '160px', flex: '1 1 140px' }}>
+              <input
+                className="gov-input"
+                placeholder="ग्राम से खोजें (Village)..."
+                value={searchVillage}
+                onChange={e => setSearchVillage(e.target.value)}
+                style={{ padding: '7px 12px', fontSize: '0.85rem' }}
+              />
+            </div>
+
+            <div style={{ minWidth: '160px', flex: '1 1 140px' }}>
+              <input
+                className="gov-input"
+                placeholder="जिले से खोजें (District)..."
+                value={searchDistrict}
+                onChange={e => setSearchDistrict(e.target.value)}
+                style={{ padding: '7px 12px', fontSize: '0.85rem' }}
+              />
+            </div>
+
+            <button type="submit" className="btn-gov-primary" style={{ padding: '7px 14px', fontSize: '0.85rem' }}>
+              <Search size={14} /> खोजें
             </button>
-          )}
-          <button type="button" className="btn-ghost" onClick={() => fetchRecords(village, district)} style={{ padding: '9px 14px' }}>
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-          </button>
-        </form>
 
-        {/* Error */}
-        {error && (
-          <div className="validation-banner error" style={{ marginBottom: 16 }}>
-            <AlertTriangle size={16} /> {error}
-          </div>
-        )}
+            {isFiltered && (
+              <button type="button" className="btn-gov-secondary" onClick={clearFilters} style={{ padding: '7px 12px', fontSize: '0.85rem' }}>
+                <X size={14} /> रीसेट
+              </button>
+            )}
 
-        {/* Table */}
-        <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
-          <div style={{ overflowX: 'auto' }}>
-            <table className="data-table">
-              <thead>
+            <button type="button" className="btn-gov-secondary" onClick={() => fetchRecords(activeVillage, activeDistrict)} style={{ padding: '7px 10px' }} title="ताज़ा करें">
+              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            </button>
+          </form>
+
+        </div>
+      </div>
+
+      {/* 3. Error Alert */}
+      {error && (
+        <div className="gov-alert error">
+          <AlertTriangle size={18} /> {error}
+        </div>
+      )}
+
+      {/* 4. Table */}
+      <div className="gov-card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div className="gov-table-container">
+          <table className="gov-table">
+            <thead>
+              <tr>
+                <th style={{ width: '50px' }}>ID</th>
+                <th style={{ width: '110px' }}>खाता सं. (Khata)</th>
+                <th>CLRM क्रमांक (Unique ID)</th>
+                <th>ग्राम (Village)</th>
+                <th>तहसील / जिला</th>
+                <th>मुख्य खातेदार (Primary Owner)</th>
+                <th style={{ textAlign: 'center', width: '85px' }}>
+                  <Users size={13} style={{ verticalAlign: 'middle', marginRight: '4px' }} />खातेदार
+                </th>
+                <th style={{ textAlign: 'center', width: '85px' }}>
+                  <Layers size={13} style={{ verticalAlign: 'middle', marginRight: '4px' }} />खसरे
+                </th>
+                <th style={{ width: '160px' }}>स्थिति (Status)</th>
+                <th style={{ width: '40px' }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading && records.length === 0 ? (
                 <tr>
-                  <th>ID</th>
-                  <th>Khata No.</th>
-                  <th>CLRM No.</th>
-                  <th>Village</th>
-                  <th>Tehsil</th>
-                  <th>District</th>
-                  <th style={{ textAlign: 'center' }}>
-                    <Users size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />Owners
-                  </th>
-                  <th style={{ textAlign: 'center' }}>
-                    <Layers size={12} style={{ verticalAlign: 'middle', marginRight: 4 }} />Parcels
-                  </th>
-                  <th>Status</th>
-                  <th></th>
+                  <td colSpan={10} style={{ padding: '60px 20px', textAlign: 'center' }}>
+                    <div className="gov-spinner" style={{ margin: '0 auto 12px' }} />
+                    <p style={{ color: '#64748b', fontSize: '0.9rem' }}>डेटाबेस से भू-अभिलेख लोड हो रहे हैं...</p>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {loading && records.length === 0 ? (
-                  <tr>
-                    <td colSpan={10} style={{ padding: '48px 20px', textAlign: 'center', color: '#6b7280' }}>
-                      <Loader2 size={28} className="animate-spin" style={{ margin: '0 auto 10px' }} />
-                      <p>Loading records…</p>
-                    </td>
-                  </tr>
-                ) : records.length === 0 ? (
-                  <EmptyState filtered={isFiltered} />
-                ) : records.map(rec => (
+              ) : filteredRecords.length === 0 ? (
+                <tr>
+                  <td colSpan={10} style={{ padding: '60px 20px', textAlign: 'center', color: '#64748b' }}>
+                    <FileText size={40} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
+                    <p style={{ fontWeight: 700, fontSize: '1rem', color: '#1e293b' }}>
+                      {isFiltered ? 'खोज से मेल खाता कोई भू-अभिलेख नहीं मिला' : 'डेटाबेस में कोई रिकॉर्ड दर्ज नहीं है'}
+                    </p>
+                    <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: '4px' }}>
+                      {isFiltered ? 'कृपया अन्य ग्राम अथवा जिला नाम डालकर पुनः प्रयास करें।' : 'शुरू करने के लिए ऊपर दिए बटन से नया दस्तावेज़ अपलोड करें।'}
+                    </p>
+                  </td>
+                </tr>
+              ) : (
+                filteredRecords.map(rec => (
                   <tr
                     key={rec.id}
-                    style={{ cursor: 'pointer', transition: 'background 0.15s' }}
                     onClick={() => navigate(`/records/${rec.id}`)}
+                    style={{ cursor: 'pointer', transition: 'background 0.15s ease' }}
                   >
                     <td>
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem', color: '#818cf8' }}>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', fontWeight: 600, color: '#1e3a8a' }}>
                         #{rec.id}
                       </span>
                     </td>
                     <td>
-                      <span style={{ fontWeight: 600, color: '#e5e7eb', fontFamily: 'var(--font-mono)' }}>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: '#0f172a', fontSize: '0.925rem' }}>
                         {rec.khata_number || '—'}
                       </span>
                     </td>
                     <td>
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: '#9ca3af' }}>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: '#475569' }}>
                         {rec.clrm_no || '—'}
                       </span>
                     </td>
-                    <td style={{ color: '#d1d5db' }}>{rec.village || '—'}</td>
-                    <td style={{ color: '#9ca3af', fontSize: '0.85rem' }}>{rec.tehsil || '—'}</td>
-                    <td style={{ color: '#9ca3af', fontSize: '0.85rem' }}>{rec.district || '—'}</td>
+                    <td style={{ fontWeight: 600, color: '#0f172a' }}>
+                      {rec.village || '—'}
+                    </td>
+                    <td style={{ color: '#475569', fontSize: '0.85rem' }}>
+                      {rec.tehsil ? `${rec.tehsil}, ` : ''}{rec.district || '—'}
+                    </td>
+                    <td>
+                      <span style={{ fontWeight: 500, color: '#1e293b' }}>
+                        {rec.primary_owner || '—'}
+                      </span>
+                    </td>
                     <td style={{ textAlign: 'center' }}>
-                      <span style={{ background: 'rgba(99,102,241,0.1)', color: '#818cf8', borderRadius: 6, padding: '2px 8px', fontSize: '0.8rem', fontWeight: 600 }}>
+                      <span style={{
+                        background: '#eff6ff',
+                        color: '#1d4ed8',
+                        padding: '2px 8px',
+                        borderRadius: '6px',
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        fontFamily: 'var(--font-mono)'
+                      }}>
                         {rec.owner_count}
                       </span>
                     </td>
                     <td style={{ textAlign: 'center' }}>
-                      <span style={{ background: 'rgba(16,185,129,0.1)', color: '#34d399', borderRadius: 6, padding: '2px 8px', fontSize: '0.8rem', fontWeight: 600 }}>
+                      <span style={{
+                        background: '#f0fdf4',
+                        color: '#15803d',
+                        padding: '2px 8px',
+                        borderRadius: '6px',
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        fontFamily: 'var(--font-mono)'
+                      }}>
                         {rec.parcel_count}
                       </span>
                     </td>
                     <td onClick={e => e.stopPropagation()}>
                       <button
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                        disabled={updatingId === rec.id}
+                        type="button"
                         onClick={() => toggleVerify(rec)}
-                        title={rec.review_status === 'verified' ? 'Mark as Pending' : 'Mark as Verified'}
+                        disabled={updatingId === rec.id}
+                        title={rec.review_status === 'verified' ? 'समीक्षाधीन में बदलें' : 'सत्यापित करें'}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                       >
-                        {updatingId === rec.id
-                          ? <Loader2 size={12} className="animate-spin" />
-                          : <StatusBadge status={rec.review_status} isDuplicate={rec.is_duplicate_flag} />
-                        }
+                        {updatingId === rec.id ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <StatusBadge status={rec.review_status} isDuplicate={rec.is_duplicate_flag} />
+                        )}
                       </button>
                     </td>
-                    <td>
-                      <ChevronRight size={16} color="#4b5563" />
+                    <td style={{ textAlign: 'right', color: '#94a3b8' }}>
+                      <ChevronRight size={16} />
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
 
-        {records.length > 0 && (
-          <p style={{ marginTop: 12, textAlign: 'right', color: '#6b7280', fontSize: '0.8rem' }}>
-            Showing {records.length} of {total} record{total !== 1 ? 's' : ''}
-          </p>
+        {filteredRecords.length > 0 && (
+          <div style={{
+            padding: '12px 20px',
+            background: '#fafafa',
+            borderTop: '1px solid var(--border-card)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: '0.8rem',
+            color: '#64748b'
+          }}>
+            <span>
+              प्रदर्शित: <strong>{filteredRecords.length}</strong> / <strong>{total}</strong> कुल खाते
+            </span>
+            <span>
+              क्लिक करके संपूर्ण अधिकार अभिलेख (Record of Rights) देखें
+            </span>
+          </div>
         )}
       </div>
+
     </div>
   );
 }

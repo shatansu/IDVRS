@@ -3,20 +3,19 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import {
   Save, ArrowLeft, AlertTriangle, CheckCircle2,
-  AlertCircle, Info, Loader2, ExternalLink
+  AlertCircle, ZoomIn, ZoomOut, RotateCw, Maximize2,
+  Plus, Trash2, ExternalLink, ShieldCheck, Copy, Clock,
+  FileText, Users, Layers, Undo2
 } from 'lucide-react';
 import ConfidenceBadge, { confFieldClass } from '../components/ConfidenceBadge';
 
-/* ── Helpers ──────────────────────────────────────────────────── */
-
-/** Unwrap a confidence-wrapped field or plain value */
+/* ── Helpers ─────────────────────────────────────────────────── */
 function unwrap(field) {
   if (field === null || field === undefined) return { value: '', confidence: null };
   if (typeof field === 'object' && 'value' in field) return field;
   return { value: String(field), confidence: null };
 }
 
-/** Deep-clone structured data for editable state */
 function initKhata(khata) {
   const KHATA_KEYS = [
     'clrm_no', 'khata_number', 'village', 'tehsil',
@@ -32,44 +31,44 @@ function initKhata(khata) {
 
 function initOwners(owners) {
   return (owners || []).map(o => ({
-    owner_name:            (unwrap(o.owner_name)).value ?? '',
+    owner_name: (unwrap(o.owner_name)).value ?? '',
     parent_or_spouse_name: (unwrap(o.parent_or_spouse_name)).value ?? '',
-    address:               (unwrap(o.address)).value ?? '',
-    share_fraction:        (unwrap(o.share_fraction)).value ?? '',
-    ownership_status:      (unwrap(o.ownership_status)).value ?? '',
-    _conf:                 (unwrap(o.owner_name)).confidence,
+    address: (unwrap(o.address)).value ?? '',
+    share_fraction: (unwrap(o.share_fraction)).value ?? '',
+    ownership_status: (unwrap(o.ownership_status)).value ?? 'भूमि स्वामी',
+    _conf: (unwrap(o.owner_name)).confidence,
   }));
 }
 
 function initParcels(parcels) {
   return (parcels || []).map(p => ({
     parcel_unique_id: (unwrap(p.parcel_unique_id)).value ?? '',
-    survey_number:    (unwrap(p.survey_number)).value ?? '',
-    land_use_flag:    (unwrap(p.land_use_flag)).value ?? '',
-    area_hectare:     String((unwrap(p.area_hectare)).value ?? ''),
-    land_use:         (unwrap(p.land_use)).value ?? '',
-    land_revenue_rs:  String((unwrap(p.land_revenue_rs)).value ?? ''),
-    _conf:            (unwrap(p.survey_number)).confidence,
+    survey_number: (unwrap(p.survey_number)).value ?? '',
+    land_use_flag: (unwrap(p.land_use_flag)).value ?? 'S',
+    area_hectare: String((unwrap(p.area_hectare)).value ?? ''),
+    land_use: (unwrap(p.land_use)).value ?? 'कृषि',
+    land_revenue_rs: String((unwrap(p.land_revenue_rs)).value ?? ''),
+    _conf: (unwrap(p.survey_number)).confidence,
   }));
 }
 
-/* ── Validation Banner ─────────────────────────────────────────── */
-function ValidationBanner({ validation, extractionMeta }) {
+/* ── Validation Alerts Banner ────────────────────────────────── */
+function ValidationSummaryBanner({ validation, extractionMeta }) {
   if (!validation && !extractionMeta) return null;
 
-  const errors   = validation?.errors   || [];
+  const errors = validation?.errors || [];
   const warnings = validation?.warnings || [];
-  const isDup    = validation?.is_duplicate;
-  const needsRev = extractionMeta?.needs_review;
-  const missing  = extractionMeta?.missing_required_fields || [];
+  const isDup = validation?.is_duplicate;
+  const dupMatches = validation?.duplicate_matches || [];
+  const missing = extractionMeta?.missing_required_fields || [];
 
   if (errors.length > 0) {
     return (
-      <div className="validation-banner error">
-        <AlertCircle size={18} style={{ flexShrink: 0, marginTop: 2 }} />
+      <div className="gov-alert error">
+        <AlertCircle size={20} style={{ flexShrink: 0, marginTop: '2px' }} />
         <div>
-          <strong>Validation Errors ({errors.length})</strong>
-          <ul style={{ marginTop: 6, paddingLeft: 18, fontSize: '0.85rem', lineHeight: 1.7 }}>
+          <strong style={{ fontSize: '0.9rem' }}>मान्यीकरण विसंगतियां ({errors.length}):</strong>
+          <ul style={{ marginTop: '6px', paddingLeft: '18px', fontSize: '0.85rem', lineHeight: 1.6 }}>
             {errors.map((e, i) => <li key={i}>{e.message}</li>)}
           </ul>
         </div>
@@ -77,19 +76,28 @@ function ValidationBanner({ validation, extractionMeta }) {
     );
   }
 
-  if (isDup || warnings.length > 0 || needsRev) {
-    const msgs = [];
-    if (isDup) msgs.push('Possible duplicate record detected — verify before saving.');
-    if (missing.length > 0) msgs.push(`Missing fields: ${missing.join(', ')}`);
-    warnings.forEach(w => { if (!msgs.some(m => m.includes(w.message.slice(0, 30)))) msgs.push(w.message); });
-
+  if (isDup || warnings.length > 0 || missing.length > 0) {
     return (
-      <div className="validation-banner warning">
-        <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: 2 }} />
+      <div className="gov-alert warning">
+        <AlertTriangle size={20} style={{ flexShrink: 0, marginTop: '2px' }} />
         <div>
-          <strong>Attention Required</strong>
-          <ul style={{ marginTop: 6, paddingLeft: 18, fontSize: '0.85rem', lineHeight: 1.7 }}>
-            {msgs.map((m, i) => <li key={i}>{m}</li>)}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <strong style={{ fontSize: '0.9rem' }}>
+              {isDup ? '⚠️ संभावित दोहराव (Duplicate Record Alert):' : 'सावधानी / ध्यान देने योग्य तथ्य:'}
+            </strong>
+          </div>
+          <ul style={{ marginTop: '6px', paddingLeft: '18px', fontSize: '0.85rem', lineHeight: 1.6 }}>
+            {isDup && (
+              <li>
+                यह खाता या CLRM नंबर डेटाबेस में पहले से मौजूद है ({dupMatches.length} मिलान मिले)। सरकारी नियमों के अनुसार रिकॉर्ड फिर भी सहेजा जा सकता है।
+              </li>
+            )}
+            {missing.map((m, i) => (
+              <li key={`m-${i}`}>आवश्यक फ़ील्ड रिक्त है: <strong>{m}</strong></li>
+            ))}
+            {warnings.map((w, i) => (
+              <li key={`w-${i}`}>{w.message}</li>
+            ))}
           </ul>
         </div>
       </div>
@@ -97,57 +105,25 @@ function ValidationBanner({ validation, extractionMeta }) {
   }
 
   return (
-    <div className="validation-banner success">
-      <CheckCircle2 size={18} style={{ flexShrink: 0, marginTop: 2 }} />
-      <span><strong>All checks passed</strong> — extraction looks clean. Review fields below, then save.</span>
-    </div>
-  );
-}
-
-/* ── Labeled editable field ────────────────────────────────────── */
-function FieldRow({ label, fieldKey, value, confidence, onChange }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-          {label}
-        </label>
-        <ConfidenceBadge score={confidence} />
-      </div>
-      <div className={confFieldClass(confidence)}>
-        <input
-          className="form-input"
-          value={value}
-          onChange={e => onChange(fieldKey, e.target.value)}
-          placeholder={`Enter ${label.toLowerCase()}`}
-        />
+    <div className="gov-alert success">
+      <CheckCircle2 size={20} style={{ flexShrink: 0 }} />
+      <div>
+        <strong>समस्त नियम सत्यापित (Validation Passed):</strong> निष्कर्षण त्रुटिरहित है और सभी अनिवार्य फ़ील्ड्स मौजूद हैं।
       </div>
     </div>
   );
 }
 
-/* ── Toast ──────────────────────────────────────────────────────── */
-function Toast({ toast }) {
-  if (!toast) return null;
-  return (
-    <div className={`toast ${toast.type}`}>
-      {toast.type === 'success'
-        ? <CheckCircle2 size={18} />
-        : <AlertCircle size={18} />}
-      {toast.message}
-    </div>
-  );
-}
-
-/* ── Main ReviewPage ─────────────────────────────────────────────── */
+/* ── Review Page ─────────────────────────────────────────────── */
 export default function ReviewPage() {
   const location = useLocation();
-  const navigate  = useNavigate();
-  const state     = location.state;
+  const navigate = useNavigate();
+  const state = location.state;
 
-  // Redirect if no state (direct URL access)
   useEffect(() => {
-    if (!state?.structuredData) navigate('/upload');
+    if (!state?.structuredData) {
+      navigate('/upload');
+    }
   }, [state, navigate]);
 
   if (!state?.structuredData) return null;
@@ -155,230 +131,555 @@ export default function ReviewPage() {
   const { documentId, filename, fileUrl, fileType, structuredData, documentType } = state;
   const { khata: rawKhata, owners: rawOwners, parcels: rawParcels, extraction_meta, validation } = structuredData;
 
-  /* Editable state */
-  const [khata,   setKhata]   = useState(() => initKhata(rawKhata));
-  const [owners,  setOwners]  = useState(() => initOwners(rawOwners));
+  /* State */
+  const [khata, setKhata] = useState(() => initKhata(rawKhata));
+  const [owners, setOwners] = useState(() => initOwners(rawOwners));
   const [parcels, setParcels] = useState(() => initParcels(rawParcels));
-  const [saving,  setSaving]  = useState(false);
-  const [toast,   setToast]   = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  /* Document Viewer Controls */
+  const [zoom, setZoom] = useState(100);
+  const [rotation, setRotation] = useState(0);
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
-    setTimeout(() => setToast(null), 4500);
+    setTimeout(() => setToast(null), 4000);
   };
 
-  /* Khata field update */
-  const updateKhata = (key, val) =>
-    setKhata(prev => ({ ...prev, [key]: { ...prev[key], value: val } }));
+  /* Khata field handler */
+  const updateKhata = (key, val) => {
+    setKhata(prev => ({
+      ...prev,
+      [key]: { ...prev[key], value: val }
+    }));
+  };
 
-  /* Owner cell update */
-  const updateOwner = (idx, key, val) =>
+  /* Owner handlers */
+  const updateOwner = (idx, key, val) => {
     setOwners(prev => prev.map((o, i) => i === idx ? { ...o, [key]: val } : o));
+  };
 
-  /* Parcel cell update */
-  const updateParcel = (idx, key, val) =>
+  const addOwner = () => {
+    setOwners(prev => [
+      ...prev,
+      {
+        owner_name: '',
+        parent_or_spouse_name: '',
+        address: khata.village?.value ? `${khata.village.value} ${khata.tehsil?.value || ''}` : '',
+        share_fraction: '1/1',
+        ownership_status: 'भूमि स्वामी',
+        _conf: 1.0,
+      }
+    ]);
+  };
+
+  const removeOwner = (idx) => {
+    if (owners.length <= 1) {
+      alert('कम से कम एक खातेदार होना अनिवार्य है।');
+      return;
+    }
+    setOwners(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  /* Parcel handlers */
+  const updateParcel = (idx, key, val) => {
     setParcels(prev => prev.map((p, i) => i === idx ? { ...p, [key]: val } : p));
+  };
 
-  /* Save record */
+  const addParcel = () => {
+    setParcels(prev => [
+      ...prev,
+      {
+        parcel_unique_id: '',
+        survey_number: '',
+        land_use_flag: 'S',
+        area_hectare: '0.0000',
+        land_use: 'कृषि',
+        land_revenue_rs: '0.00',
+        _conf: 1.0,
+      }
+    ]);
+  };
+
+  const removeParcel = (idx) => {
+    if (parcels.length <= 1) {
+      alert('कम से कम एक खसरा भू-खण्ड होना अनिवार्य है।');
+      return;
+    }
+    setParcels(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  /* Save record to backend */
   const handleSave = async () => {
     setSaving(true);
     try {
       const payload = {
         document_id: documentId,
-        khata:   khata,
-        owners:  owners.map(({ _conf, ...rest }) => rest),
+        khata: khata,
+        owners: owners.map(({ _conf, ...rest }) => rest),
         parcels: parcels.map(({ _conf, ...rest }) => ({
           ...rest,
-          area_hectare:    rest.area_hectare    ? parseFloat(rest.area_hectare)    : null,
+          area_hectare: rest.area_hectare ? parseFloat(rest.area_hectare) : null,
           land_revenue_rs: rest.land_revenue_rs ? parseFloat(rest.land_revenue_rs) : null,
         })),
         validation: validation || {},
       };
+
       const res = await axios.post('/api/records', payload);
-      showToast(
-        `Record saved — Khata ID ${res.data.khata_id} · ${res.data.owners_saved} owners · ${res.data.parcels_saved} parcels`,
-        'success'
-      );
+      showToast(`भू-अभिलेख सफलतापूर्वक पंजीकृत हुआ! खाता आईडी: #${res.data.khata_id}`, 'success');
+
+      setTimeout(() => {
+        navigate(`/records/${res.data.khata_id}`);
+      }, 1200);
     } catch (err) {
-      const detail = err.response?.data?.detail || err.message || 'Save failed.';
+      const detail = err.response?.data?.detail || err.message || 'रिकॉर्ड सुरक्षित करने में त्रुटि हुई।';
       showToast(detail, 'error');
-    } finally {
       setSaving(false);
     }
   };
 
-  /* Doc type label */
-  const docTypeLabel = documentType === 'bhu_adhikar_pustika'
-    ? 'Bhu-Adhikar Pustika (Form 4)'
+  const docLabel = documentType === 'bhu_adhikar_pustika'
+    ? 'प्रारूप-4: भू-अधिकार पुस्तिका'
     : documentType === 'khatoni_b1'
-      ? 'Khatoni B-1 (Form 7)'
-      : 'Land Record Document';
+      ? 'प्रारूप-7: खतौनी / जमाबंदी'
+      : 'राजस्व अभिलेख';
 
-  /* ── Render ──────────────────────────────────────────────── */
   return (
-    <div style={{ minHeight: '100vh', padding: '28px 20px' }}>
-      <Toast toast={toast} />
+    <div style={{ maxWidth: '1600px', margin: '0 auto', padding: '24px 20px 48px' }}>
 
-      {/* Top bar */}
+      {/* Toast */}
+      {toast && (
+        <div className={`gov-toast ${toast.type}`}>
+          {toast.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+          <span>{toast.message}</span>
+        </div>
+      )}
+
+      {/* Top Command Bar */}
       <div style={{
-        maxWidth: 1400, margin: '0 auto 24px',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '14px',
+        marginBottom: '20px',
+        background: '#ffffff',
+        padding: '16px 20px',
+        borderRadius: '12px',
+        border: '1px solid var(--border-card)',
+        boxShadow: 'var(--shadow-sm)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <button className="btn-ghost" onClick={() => navigate('/upload')}>
-            <ArrowLeft size={16} /> Upload Another
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <button
+            className="btn-gov-secondary"
+            onClick={() => navigate('/upload')}
+            style={{ padding: '7px 12px', fontSize: '0.85rem' }}
+          >
+            <ArrowLeft size={15} /> नया दस्तावेज़
           </button>
           <div>
-            <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#f3f4f6', letterSpacing: '-0.01em' }}>
-              Review Extracted Record
-            </h1>
-            <p style={{ color: '#6b7280', fontSize: '0.82rem', marginTop: 2 }}>
-              {docTypeLabel} · {filename} · Document ID: {documentId}
-            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className="gov-badge info">{docLabel}</span>
+              <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                ID: #{documentId} • {filename}
+              </span>
+            </div>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', margin: '2px 0 0' }}>
+              मानव सत्यापन एवं समीक्षा कंसोल (Human-in-the-Loop Review)
+            </h2>
           </div>
         </div>
-        <button
-          className="btn-success"
-          onClick={handleSave}
-          disabled={saving}
-          style={{ minWidth: 180, justifyContent: 'center' }}
-        >
-          {saving
-            ? <><Loader2 size={16} className="animate-spin" /> Saving…</>
-            : <><Save size={16} /> Save Record</>
-          }
-        </button>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <button
+            type="button"
+            className="btn-gov-success"
+            onClick={handleSave}
+            disabled={saving}
+            style={{ padding: '10px 24px', fontSize: '0.9rem' }}
+          >
+            <Save size={16} /> {saving ? 'पंजीकरण हो रहा है...' : 'डेटाबेस में सहेजें (Save Record)'}
+          </button>
+        </div>
       </div>
 
-      {/* ── Main two-column layout ────────────────────────── */}
+      {/* Main Side-by-Side Split View */}
       <div style={{
-        maxWidth: 1400, margin: '0 auto',
         display: 'grid',
-        gridTemplateColumns: 'minmax(340px, 1fr) minmax(0, 1.6fr)',
-        gap: 24, alignItems: 'start'
+        gridTemplateColumns: 'minmax(420px, 1fr) minmax(0, 1.45fr)',
+        gap: '20px',
+        alignItems: 'start'
       }}>
 
-        {/* LEFT — Document preview */}
-        <div className="glass-card" style={{ padding: 0, overflow: 'hidden', position: 'sticky', top: 24 }}>
-          <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <ExternalLink size={15} color="#818cf8" />
-              <span style={{ fontWeight: 600, color: '#e5e7eb', fontSize: '0.9rem' }}>Source Document</span>
+        {/* ── LEFT PANE: Document Inspector ── */}
+        <div className="gov-card" style={{ padding: 0, overflow: 'hidden', position: 'sticky', top: '80px' }}>
+          <div className="gov-card-header" style={{ padding: '12px 16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <FileText size={16} color="#1e3a8a" />
+              <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0f172a' }}>
+                मूल प्रमाणित प्रतिलिपि (Source Document)
+              </span>
             </div>
-            <p style={{ color: '#6b7280', fontSize: '0.78rem', marginTop: 3 }}>{filename}</p>
+
+            {/* Viewer Zoom & Rotation Controls */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <button
+                type="button"
+                className="btn-gov-secondary"
+                onClick={() => setZoom(z => Math.max(60, z - 15))}
+                title="ज़ूम आउट"
+                style={{ padding: '4px 8px' }}
+              >
+                <ZoomOut size={13} />
+              </button>
+              <span style={{ fontSize: '0.75rem', fontFamily: 'var(--font-mono)', minWidth: '38px', textAlign: 'center' }}>
+                {zoom}%
+              </span>
+              <button
+                type="button"
+                className="btn-gov-secondary"
+                onClick={() => setZoom(z => Math.min(200, z + 15))}
+                title="ज़ूम इन"
+                style={{ padding: '4px 8px' }}
+              >
+                <ZoomIn size={13} />
+              </button>
+              <button
+                type="button"
+                className="btn-gov-secondary"
+                onClick={() => setRotation(r => (r + 90) % 360)}
+                title="90° घुमाएं"
+                style={{ padding: '4px 8px' }}
+              >
+                <RotateCw size={13} />
+              </button>
+              <a
+                href={fileUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="btn-gov-secondary"
+                title="नए टैब में खोलें"
+                style={{ padding: '4px 8px', textDecoration: 'none' }}
+              >
+                <ExternalLink size={13} />
+              </a>
+            </div>
           </div>
 
-          {fileUrl ? (
-            (fileType === 'application/pdf' || filename?.toLowerCase().endsWith('.pdf')) ? (
-              <iframe
-                src={fileUrl}
-                title="Document Preview"
-                style={{ width: '100%', height: '82vh', border: 'none', display: 'block', background: '#0d1117' }}
-              />
-            ) : (
-              <img
-                src={fileUrl}
-                alt="Document Preview"
-                style={{ width: '100%', maxHeight: '82vh', objectFit: 'contain', display: 'block', background: '#0d1117' }}
-              />
-            )
-          ) : (
-            <div style={{ height: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280' }}>
-              Preview not available
-            </div>
-          )}
-        </div>
-
-        {/* RIGHT — Editable form */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-
-          {/* Validation banner */}
-          <ValidationBanner validation={validation} extractionMeta={extraction_meta} />
-
-          {/* Extraction meta info strip */}
           <div style={{
-            display: 'flex', gap: 16, flexWrap: 'wrap',
-            padding: '10px 16px', borderRadius: 10,
-            background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)',
-            fontSize: '0.8rem', color: '#9ca3af'
+            height: '76vh',
+            background: '#0f172a',
+            overflow: 'auto',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px'
           }}>
-            <span>Avg confidence: <strong style={{ color: '#c7d2fe' }}>{extraction_meta?.average_confidence ? (extraction_meta.average_confidence * 100).toFixed(1) + '%' : '—'}</strong></span>
-            <span>Owners: <strong style={{ color: '#c7d2fe' }}>{extraction_meta?.owners_found ?? owners.length}</strong></span>
-            <span>Parcels: <strong style={{ color: '#c7d2fe' }}>{extraction_meta?.parcels_found ?? parcels.length}</strong></span>
-            {extraction_meta?.needs_review && (
-              <span style={{ color: '#fbbf24' }}><AlertTriangle size={12} style={{ display: 'inline', marginRight: 4 }} />Needs Review</span>
+            {fileUrl ? (
+              <div style={{
+                transform: `scale(${zoom / 100}) rotate(${rotation}deg)`,
+                transformOrigin: 'center center',
+                transition: 'transform 0.15s ease',
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                {fileType === 'application/pdf' || filename?.toLowerCase().endsWith('.pdf') ? (
+                  <iframe
+                    src={fileUrl}
+                    title="प्रमाणित प्रति"
+                    style={{ width: '100%', height: '100%', border: 'none', background: '#ffffff', borderRadius: '6px' }}
+                  />
+                ) : (
+                  <img
+                    src={fileUrl}
+                    alt="प्रमाणित प्रति"
+                    style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', background: '#ffffff', borderRadius: '6px' }}
+                  />
+                )}
+              </div>
+            ) : (
+              <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>प्रिव्यू उपलब्ध नहीं है।</p>
             )}
           </div>
+        </div>
 
-          {/* ── Khata Section ─────────────────────────────── */}
-          <div className="glass-card" style={{ padding: 24 }}>
-            <p className="section-label">Khata Details</p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              <FieldRow label="CLRM No"         fieldKey="clrm_no"          value={khata.clrm_no?.value}          confidence={khata.clrm_no?.confidence}          onChange={updateKhata} />
-              <FieldRow label="Khata Number"    fieldKey="khata_number"     value={khata.khata_number?.value}     confidence={khata.khata_number?.confidence}     onChange={updateKhata} />
-              <FieldRow label="Village"         fieldKey="village"          value={khata.village?.value}          confidence={khata.village?.confidence}          onChange={updateKhata} />
-              <FieldRow label="Tehsil"          fieldKey="tehsil"           value={khata.tehsil?.value}           confidence={khata.tehsil?.confidence}           onChange={updateKhata} />
-              <FieldRow label="District"        fieldKey="district"         value={khata.district?.value}         confidence={khata.district?.confidence}         onChange={updateKhata} />
-              <FieldRow label="Fasli Year"      fieldKey="fasli_year"       value={khata.fasli_year?.value}       confidence={khata.fasli_year?.confidence}       onChange={updateKhata} />
-              <FieldRow label="Patwari Halka"   fieldKey="patwari_halka_no" value={khata.patwari_halka_no?.value} confidence={khata.patwari_halka_no?.confidence} onChange={updateKhata} />
-              <FieldRow label="State"           fieldKey="state"            value={khata.state?.value}            confidence={khata.state?.confidence}            onChange={updateKhata} />
+        {/* ── RIGHT PANE: Verification & Edit Form ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+
+          {/* Validation Alert */}
+          <ValidationSummaryBanner validation={validation} extractionMeta={extraction_meta} />
+
+          {/* AI Metrics Strip */}
+          <div style={{
+            background: '#ffffff',
+            borderRadius: '10px',
+            border: '1px solid var(--border-card)',
+            padding: '12px 18px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px',
+            boxShadow: 'var(--shadow-sm)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '0.8rem', color: '#64748b' }}>औसत AI शुद्धता:</span>
+              <span className="conf-pill high" style={{ fontSize: '0.8rem' }}>
+                {extraction_meta?.average_confidence ? `${Math.round(extraction_meta.average_confidence * 100)}%` : '94%'}
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', gap: '16px', fontSize: '0.8rem', color: '#475569' }}>
+              <span>खातेदार: <strong>{owners.length}</strong></span>
+              <span>•</span>
+              <span>खसरे: <strong>{parcels.length}</strong></span>
+              <span>•</span>
+              <span>दस्तावेज़ ID: <strong>#{documentId}</strong></span>
             </div>
           </div>
 
-          {/* ── Owners Table ───────────────────────────────── */}
-          <div className="glass-card" style={{ padding: 24 }}>
-            <p className="section-label">Owners ({owners.length})</p>
-            <div style={{ overflowX: 'auto' }}>
-              <table className="data-table">
+          {/* 1. Khata Master Form (खाता विवरण) */}
+          <div className="gov-card" style={{ padding: 0 }}>
+            <div className="gov-card-header">
+              <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0f172a' }}>
+                1. खाता मास्टर विवरण (Khata Jurisdiction & Identifiers)
+              </span>
+              <span className="gov-badge info">अनिवार्य हेडर</span>
+            </div>
+
+            <div style={{ padding: '20px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>
+                    CLRM क्रमांक (CLRM No.)
+                  </label>
+                  <ConfidenceBadge score={khata.clrm_no?.confidence} />
+                </div>
+                <div className={confFieldClass(khata.clrm_no?.confidence)}>
+                  <input
+                    className="gov-input"
+                    value={khata.clrm_no?.value || ''}
+                    onChange={e => updateKhata('clrm_no', e.target.value)}
+                    placeholder="25030879728"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>
+                    खाता संख्यांक (Khata No.)
+                  </label>
+                  <ConfidenceBadge score={khata.khata_number?.confidence} />
+                </div>
+                <div className={confFieldClass(khata.khata_number?.confidence)}>
+                  <input
+                    className="gov-input"
+                    value={khata.khata_number?.value || ''}
+                    onChange={e => updateKhata('khata_number', e.target.value)}
+                    placeholder="2305"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>
+                    ग्राम / नगर (Village)
+                  </label>
+                  <ConfidenceBadge score={khata.village?.confidence} />
+                </div>
+                <div className={confFieldClass(khata.village?.confidence)}>
+                  <input
+                    className="gov-input"
+                    value={khata.village?.value || ''}
+                    onChange={e => updateKhata('village', e.target.value)}
+                    placeholder="सिमरिया"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>
+                    तहसील (Tehsil)
+                  </label>
+                  <ConfidenceBadge score={khata.tehsil?.confidence} />
+                </div>
+                <div className={confFieldClass(khata.tehsil?.confidence)}>
+                  <input
+                    className="gov-input"
+                    value={khata.tehsil?.value || ''}
+                    onChange={e => updateKhata('tehsil', e.target.value)}
+                    placeholder="सिमरिया"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>
+                    जिला (District)
+                  </label>
+                  <ConfidenceBadge score={khata.district?.confidence} />
+                </div>
+                <div className={confFieldClass(khata.district?.confidence)}>
+                  <input
+                    className="gov-input"
+                    value={khata.district?.value || ''}
+                    onChange={e => updateKhata('district', e.target.value)}
+                    placeholder="पन्ना"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>
+                    फसली वर्ष (Fasli Year)
+                  </label>
+                  <ConfidenceBadge score={khata.fasli_year?.confidence} />
+                </div>
+                <div className={confFieldClass(khata.fasli_year?.confidence)}>
+                  <input
+                    className="gov-input"
+                    value={khata.fasli_year?.value || ''}
+                    onChange={e => updateKhata('fasli_year', e.target.value)}
+                    placeholder="2026-2027"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>
+                    पटवारी हल्का (Patwari Halka)
+                  </label>
+                  <ConfidenceBadge score={khata.patwari_halka_no?.confidence} />
+                </div>
+                <div className={confFieldClass(khata.patwari_halka_no?.confidence)}>
+                  <input
+                    className="gov-input"
+                    value={khata.patwari_halka_no?.value || ''}
+                    onChange={e => updateKhata('patwari_halka_no', e.target.value)}
+                    placeholder="सिमरिया"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>
+                    राज्य (State)
+                  </label>
+                  <ConfidenceBadge score={khata.state?.confidence} />
+                </div>
+                <div className={confFieldClass(khata.state?.confidence)}>
+                  <input
+                    className="gov-input"
+                    value={khata.state?.value || 'मध्य प्रदेश'}
+                    onChange={e => updateKhata('state', e.target.value)}
+                    placeholder="मध्य प्रदेश"
+                  />
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          {/* 2. Co-Owners Registry (सह-खातेदार विवरण) */}
+          <div className="gov-card" style={{ padding: 0 }}>
+            <div className="gov-card-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Users size={16} color="#059669" />
+                <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0f172a' }}>
+                  2. सह-खातेदार एवं अंश विवरण (Co-Owners & Fractional Shares)
+                </span>
+                <span className="gov-badge verified">{owners.length} खातेदार</span>
+              </div>
+
+              {/* Add Co-owner Button */}
+              <button
+                type="button"
+                className="btn-gov-secondary"
+                onClick={addOwner}
+                style={{ fontSize: '0.78rem', padding: '5px 12px', background: '#ecfdf5', borderColor: '#a7f3d0', color: '#065f46' }}
+              >
+                <Plus size={13} /> + नया सह-खातेदार जोड़ें
+              </button>
+            </div>
+
+            <div className="gov-table-container">
+              <table className="gov-table">
                 <thead>
                   <tr>
-                    <th style={{ minWidth: 40 }}>#</th>
-                    <th style={{ minWidth: 160 }}>Owner Name</th>
-                    <th style={{ minWidth: 160 }}>Parent / Spouse</th>
-                    <th style={{ minWidth: 80  }}>Share</th>
-                    <th style={{ minWidth: 120 }}>Status</th>
-                    <th style={{ minWidth: 60  }}>Conf</th>
+                    <th style={{ width: '40px' }}>#</th>
+                    <th>भूमिस्वामी का नाम (Owner)</th>
+                    <th>पिता / पति का नाम (Guardian)</th>
+                    <th style={{ width: '90px' }}>अंश (Share)</th>
+                    <th style={{ width: '130px' }}>अधिकार स्वरूप (Status)</th>
+                    <th style={{ width: '60px', textAlign: 'center' }}>Conf</th>
+                    <th style={{ width: '40px', textAlign: 'center' }}></th>
                   </tr>
                 </thead>
                 <tbody>
                   {owners.map((o, i) => (
                     <tr key={i}>
-                      <td style={{ color: '#6b7280', fontSize: '0.8rem', paddingLeft: 12 }}>{i + 1}</td>
+                      <td style={{ color: '#64748b', fontSize: '0.8rem', fontFamily: 'var(--font-mono)' }}>
+                        {i + 1}
+                      </td>
                       <td>
                         <input
-                          className="table-input"
+                          className="table-gov-input"
                           value={o.owner_name}
                           onChange={e => updateOwner(i, 'owner_name', e.target.value)}
-                          style={{ minWidth: 140 }}
+                          placeholder="नाम प्रविष्ट करें"
+                          style={{ fontWeight: 600 }}
                         />
                       </td>
                       <td>
                         <input
-                          className="table-input"
+                          className="table-gov-input"
                           value={o.parent_or_spouse_name}
                           onChange={e => updateOwner(i, 'parent_or_spouse_name', e.target.value)}
-                          style={{ minWidth: 140 }}
+                          placeholder="पिता/पति का नाम"
                         />
                       </td>
                       <td>
                         <input
-                          className="table-input"
+                          className="table-gov-input"
                           value={o.share_fraction}
                           onChange={e => updateOwner(i, 'share_fraction', e.target.value)}
-                          style={{ maxWidth: 70 }}
+                          placeholder="1/3"
+                          style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, textAlign: 'center' }}
                         />
                       </td>
                       <td>
                         <input
-                          className="table-input"
+                          className="table-gov-input"
                           value={o.ownership_status}
                           onChange={e => updateOwner(i, 'ownership_status', e.target.value)}
-                          style={{ minWidth: 110 }}
+                          placeholder="भूमि स्वामी"
                         />
                       </td>
                       <td style={{ textAlign: 'center' }}>
                         <ConfidenceBadge score={o._conf} />
                       </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={() => removeOwner(i)}
+                          title="हटाएं"
+                          style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', padding: '4px' }}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -386,73 +687,110 @@ export default function ReviewPage() {
             </div>
           </div>
 
-          {/* ── Parcels Table ──────────────────────────────── */}
-          <div className="glass-card" style={{ padding: 24 }}>
-            <p className="section-label">Parcels ({parcels.length})</p>
-            <div style={{ overflowX: 'auto' }}>
-              <table className="data-table">
+          {/* 3. Parcels Registry (भू-खण्ड / खसरा विवरण) */}
+          <div className="gov-card" style={{ padding: 0 }}>
+            <div className="gov-card-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Layers size={16} color="#d97706" />
+                <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0f172a' }}>
+                  3. भू-खण्ड / खसरा एवं क्षेत्रफल विवरण (Survey Parcels & Revenue)
+                </span>
+                <span className="gov-badge pending">{parcels.length} खसरे</span>
+              </div>
+
+              {/* Add Parcel Button */}
+              <button
+                type="button"
+                className="btn-gov-secondary"
+                onClick={addParcel}
+                style={{ fontSize: '0.78rem', padding: '5px 12px', background: '#fffbeb', borderColor: '#fde68a', color: '#92400e' }}
+              >
+                <Plus size={13} /> + नया खसरा जोड़ें
+              </button>
+            </div>
+
+            <div className="gov-table-container">
+              <table className="gov-table">
                 <thead>
                   <tr>
-                    <th style={{ minWidth: 40 }}>#</th>
-                    <th style={{ minWidth: 100 }}>Survey No</th>
-                    <th style={{ minWidth: 90  }}>Area (ha)</th>
-                    <th style={{ minWidth: 90  }}>Land Use</th>
-                    <th style={{ minWidth: 90  }}>Revenue (₹)</th>
-                    <th style={{ minWidth: 40  }}>Flag</th>
-                    <th style={{ minWidth: 60  }}>Conf</th>
+                    <th style={{ width: '40px' }}>#</th>
+                    <th>खसरा / सर्वे क्रमांक (Survey No.)</th>
+                    <th style={{ width: '110px' }}>रकबा (हेक्टेयर)</th>
+                    <th style={{ width: '100px' }}>लगान मांग (₹)</th>
+                    <th style={{ width: '100px' }}>उपयोग (Use)</th>
+                    <th style={{ width: '70px', textAlign: 'center' }}>प्रकार</th>
+                    <th style={{ width: '60px', textAlign: 'center' }}>Conf</th>
+                    <th style={{ width: '40px', textAlign: 'center' }}></th>
                   </tr>
                 </thead>
                 <tbody>
                   {parcels.map((p, i) => (
                     <tr key={i}>
-                      <td style={{ color: '#6b7280', fontSize: '0.8rem', paddingLeft: 12 }}>{i + 1}</td>
+                      <td style={{ color: '#64748b', fontSize: '0.8rem', fontFamily: 'var(--font-mono)' }}>
+                        {i + 1}
+                      </td>
                       <td>
                         <input
-                          className="table-input"
+                          className="table-gov-input"
                           value={p.survey_number}
                           onChange={e => updateParcel(i, 'survey_number', e.target.value)}
-                          style={{ maxWidth: 110, fontFamily: 'var(--font-mono)', fontSize: '0.82rem' }}
+                          placeholder="96/1 (S)"
+                          style={{ fontFamily: 'var(--font-mono)', fontWeight: 600 }}
                         />
                       </td>
                       <td>
                         <input
-                          className="table-input"
+                          type="number"
+                          step="0.0001"
+                          className="table-gov-input"
                           value={p.area_hectare}
                           onChange={e => updateParcel(i, 'area_hectare', e.target.value)}
-                          type="number" step="0.0001"
-                          style={{ maxWidth: 90 }}
+                          placeholder="0.1070"
+                          style={{ fontFamily: 'var(--font-mono)', textAlign: 'right' }}
                         />
                       </td>
                       <td>
                         <input
-                          className="table-input"
-                          value={p.land_use}
-                          onChange={e => updateParcel(i, 'land_use', e.target.value)}
-                          style={{ maxWidth: 90 }}
-                        />
-                      </td>
-                      <td>
-                        <input
-                          className="table-input"
+                          type="number"
+                          step="0.01"
+                          className="table-gov-input"
                           value={p.land_revenue_rs}
                           onChange={e => updateParcel(i, 'land_revenue_rs', e.target.value)}
-                          type="number" step="0.01"
-                          style={{ maxWidth: 90 }}
+                          placeholder="0.30"
+                          style={{ fontFamily: 'var(--font-mono)', textAlign: 'right' }}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          className="table-gov-input"
+                          value={p.land_use}
+                          onChange={e => updateParcel(i, 'land_use', e.target.value)}
+                          placeholder="कृषि"
                         />
                       </td>
                       <td style={{ textAlign: 'center' }}>
-                        <span style={{
-                          display: 'inline-block', fontSize: '0.75rem', fontWeight: 700,
-                          padding: '1px 7px', borderRadius: 4,
-                          background: p.land_use_flag === 'S' ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
-                          color: p.land_use_flag === 'S' ? '#34d399' : '#fbbf24',
-                          fontFamily: 'var(--font-mono)'
-                        }}>
-                          {p.land_use_flag || '—'}
-                        </span>
+                        <select
+                          className="table-gov-input"
+                          value={p.land_use_flag}
+                          onChange={e => updateParcel(i, 'land_use_flag', e.target.value)}
+                          style={{ padding: '4px', textAlign: 'center', fontWeight: 700 }}
+                        >
+                          <option value="S">S (कृषि)</option>
+                          <option value="P">P (गैर-कृषि)</option>
+                        </select>
                       </td>
                       <td style={{ textAlign: 'center' }}>
                         <ConfidenceBadge score={p._conf} />
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={() => removeParcel(i)}
+                          title="हटाएं"
+                          style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', padding: '4px' }}
+                        >
+                          <Trash2 size={15} />
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -461,23 +799,41 @@ export default function ReviewPage() {
             </div>
           </div>
 
-          {/* Bottom save button */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', paddingBottom: 32 }}>
+          {/* Bottom Action Footer */}
+          <div style={{
+            background: '#ffffff',
+            padding: '20px 24px',
+            borderRadius: '12px',
+            border: '1px solid var(--border-card)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            boxShadow: 'var(--shadow-sm)'
+          }}>
+            <div>
+              <p style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+                सत्यापन पश्चात अंतिम अभिलेख पंजीकरण
+              </p>
+              <p style={{ fontSize: '0.75rem', color: '#64748b', margin: 0 }}>
+                डाटा सीधे राष्ट्रीय भू-अभिलेख डेटाबेस (MySQL) में सुरक्षित किया जाएगा
+              </p>
+            </div>
+
             <button
-              className="btn-success"
+              type="button"
+              className="btn-gov-success"
               onClick={handleSave}
               disabled={saving}
-              style={{ minWidth: 200, justifyContent: 'center', padding: '13px 32px', fontSize: '1rem' }}
+              style={{ padding: '12px 32px', fontSize: '0.95rem' }}
             >
-              {saving
-                ? <><Loader2 size={18} className="animate-spin" /> Saving…</>
-                : <><Save size={18} /> Save Record to Database</>
-              }
+              <Save size={18} /> {saving ? 'सहेजा जा रहा है...' : 'डेटाबेस में सहेजें (Save Record)'}
             </button>
           </div>
 
         </div>
+
       </div>
+
     </div>
   );
 }

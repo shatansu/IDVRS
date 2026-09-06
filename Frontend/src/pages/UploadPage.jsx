@@ -1,152 +1,279 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { UploadCloud, FileText, X, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
+import {
+  UploadCloud, FileText, X, CheckCircle2,
+  AlertCircle, Sparkles, Shield, ArrowRight,
+  HelpCircle, RefreshCw, FileCheck
+} from 'lucide-react';
 
 const ACCEPTED_TYPES = ['.pdf', '.jpg', '.jpeg', '.png'];
-const ACCEPTED_MIME  = ['application/pdf', 'image/jpeg', 'image/png'];
+const ACCEPTED_MIME = ['application/pdf', 'image/jpeg', 'image/png'];
 
 export default function UploadPage() {
-  const navigate  = useNavigate();
+  const navigate = useNavigate();
   const fileInput = useRef(null);
 
-  const [file,       setFile]       = useState(null);
-  const [dragging,   setDragging]   = useState(false);
-  const [uploading,  setUploading]  = useState(false);
-  const [statusMsg,  setStatusMsg]  = useState('');
-  const [error,      setError]      = useState(null);
+  const [file, setFile] = useState(null);
+  const [dragging, setDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [currentStep, setCurrentStep] = useState('');
+  const [error, setError] = useState(null);
 
-  /* ── File validation ─────────────────────────────────────── */
+  /* ── File validation ───────────────────────────────────────── */
   const validateFile = (f) => {
-    if (!f) return 'No file selected.';
+    if (!f) return 'कृपया कोई फ़ाइल चुनें।';
     const ext = '.' + f.name.split('.').pop().toLowerCase();
     if (!ACCEPTED_TYPES.includes(ext) && !ACCEPTED_MIME.includes(f.type)) {
-      return `Unsupported file type. Please upload a PDF, JPG, or PNG.`;
+      return 'असमर्थित फ़ाइल प्रारूप। कृपया PDF, JPG अथवा PNG फ़ाइल अपलोड करें।';
     }
-    if (f.size > 50 * 1024 * 1024) return 'File size exceeds 50 MB limit.';
+    if (f.size > 50 * 1024 * 1024) return 'फ़ाइल का आकार 50 MB से अधिक नहीं हो सकता।';
     return null;
   };
 
   const pickFile = (f) => {
     const err = validateFile(f);
-    if (err) { setError(err); setFile(null); return; }
+    if (err) {
+      setError(err);
+      setFile(null);
+      return;
+    }
     setError(null);
     setFile(f);
   };
 
-  /* ── Drag & Drop handlers ────────────────────────────────── */
-  const onDragOver  = useCallback((e) => { e.preventDefault(); setDragging(true);  }, []);
+  /* ── Drag & Drop ───────────────────────────────────────────── */
+  const onDragOver = useCallback((e) => { e.preventDefault(); setDragging(true); }, []);
   const onDragLeave = useCallback((e) => { e.preventDefault(); setDragging(false); }, []);
-  const onDrop      = useCallback((e) => {
-    e.preventDefault(); setDragging(false);
+  const onDrop = useCallback((e) => {
+    e.preventDefault();
+    setDragging(false);
     const dropped = e.dataTransfer.files?.[0];
     if (dropped) pickFile(dropped);
   }, []);
 
-  const onFileChange = (e) => {
-    const picked = e.target.files?.[0];
-    if (picked) pickFile(picked);
-  };
-
   const clearFile = () => {
-    setFile(null); setError(null);
+    setFile(null);
+    setError(null);
     if (fileInput.current) fileInput.current.value = '';
   };
 
-  /* ── Upload ──────────────────────────────────────────────── */
-  const handleUpload = async () => {
-    if (!file) return;
-    setUploading(true);
-    setError(null);
-    setStatusMsg('Uploading document…');
-
+  /* ── 1-Click Sample Demo Loader ────────────────────────────── */
+  const loadSamplePreset = async (filename, displayName) => {
     try {
-      const formData = new FormData();
-      formData.append('file', file);
+      setError(null);
+      setCurrentStep(`सैंपल दस्तावेज़ लोड हो रहा है: ${displayName}...`);
+      setUploading(true);
 
-      setStatusMsg('Extracting text (Phase 2)…');
-      const res = await axios.post('/api/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-        timeout: 120_000,
-        onUploadProgress: (p) => {
-          if (p.total) setStatusMsg(`Uploading… ${Math.round((p.loaded / p.total) * 100)}%`);
-        },
-      });
+      const response = await fetch(`/samples/${filename}`);
+      if (!response.ok) throw new Error('सैंपल फ़ाइल लोड करने में विफल।');
 
-      setStatusMsg('Running field extraction (Phase 3)…');
-      await new Promise(r => setTimeout(r, 300)); // allow UI to update
+      const blob = await response.blob();
+      const sampleFile = new File([blob], filename, { type: 'application/pdf' });
+      setFile(sampleFile);
 
-      const data = res.data;
-
-      // Navigate to review page, passing full result via router state
-      navigate('/review', {
-        state: {
-          documentId:    data.document_id,
-          documentType:  data.document_type,
-          filename:      data.original_filename,
-          sourceMode:    data.source_mode,
-          pageCount:     data.page_count,
-          structuredData: data.structured_data,
-          // Pass the file object URL so review page can show a preview
-          fileUrl: URL.createObjectURL(file),
-          fileType: file.type,
-        }
-      });
+      // Trigger upload directly with this file
+      await executeUpload(sampleFile);
     } catch (err) {
-      const detail = err.response?.data?.detail || err.message || 'Upload failed.';
-      setError(detail);
+      setError(err.message || 'सैंपल दस्तावेज़ लोड करने में त्रुटि हुई।');
       setUploading(false);
-      setStatusMsg('');
     }
   };
 
-  /* ── Render ──────────────────────────────────────────────── */
-  const dropCls = [
-    'drop-zone',
-    dragging ? 'drag-over' : '',
-    file      ? 'has-file' : '',
-  ].join(' ');
+  /* ── Upload & Pipeline Execution ───────────────────────────── */
+  const executeUpload = async (targetFile) => {
+    const uploadTarget = targetFile || file;
+    if (!uploadTarget) return;
+
+    setUploading(true);
+    setError(null);
+
+    try {
+      setCurrentStep('1/4: दस्तावेज़ सुरक्षित अपलोड किया जा रहा है...');
+      const formData = new FormData();
+      formData.append('file', uploadTarget);
+
+      // Step simulation for UI visual clarity
+      setTimeout(() => setCurrentStep('2/4: PyMuPDF / OpenCV प्री-प्रोसेसिंग एवं मात्रा संरेखण...'), 700);
+      setTimeout(() => setCurrentStep('3/4: देवनागरी OCR व रिलेशनल फील्ड एक्सट्रैक्शन (खसरा, अंश, खातेदार)...'), 1600);
+      setTimeout(() => setCurrentStep('4/4: प्रारूप 4/7 नियम सत्यापन एवं डेटाबेस डुप्लीकेट डिटेक्शन...'), 2400);
+
+      const res = await axios.post('/api/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 120000,
+      });
+
+      const data = res.data;
+
+      // Navigate to Review Page
+      navigate('/review', {
+        state: {
+          documentId: data.document_id,
+          documentType: data.document_type,
+          filename: data.original_filename,
+          sourceMode: data.source_mode,
+          pageCount: data.page_count,
+          structuredData: data.structured_data,
+          fileUrl: URL.createObjectURL(uploadTarget),
+          fileType: uploadTarget.type,
+        }
+      });
+    } catch (err) {
+      const detail = err.response?.data?.detail || err.message || 'दस्तावेज़ निष्कर्षण में विफलता हुई।';
+      setError(detail);
+      setUploading(false);
+      setCurrentStep('');
+    }
+  };
 
   return (
-    <div style={{ minHeight: '100vh', padding: '40px 20px', maxWidth: '760px', margin: '0 auto' }}>
+    <div style={{ maxWidth: '1100px', margin: '0 auto', padding: '36px 20px 60px' }}>
 
-      {/* Loading overlay */}
+      {/* 1. Loading Overlay */}
       {uploading && (
-        <div className="loading-overlay">
-          <div className="processing-ring" />
-          <div style={{ textAlign: 'center' }}>
-            <p style={{ color: '#c7d2fe', fontWeight: 600, fontSize: '1.05rem' }}>Processing Document</p>
-            <p style={{ color: '#6b7280', fontSize: '0.875rem', marginTop: '6px' }}>{statusMsg}</p>
+        <div className="gov-loading-overlay">
+          <div className="gov-loading-box">
+            <div className="gov-spinner" />
+            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
+              AI भू-अभिलेख निष्कर्षण प्रगति पर है
+            </h3>
+            <p style={{ fontSize: '0.875rem', color: '#475569', margin: 0, fontWeight: 500 }}>
+              {currentStep || 'कृपया प्रतीक्षा करें...'}
+            </p>
+            <div style={{
+              width: '100%',
+              background: '#f1f5f9',
+              borderRadius: '999px',
+              height: '6px',
+              overflow: 'hidden',
+              marginTop: '8px'
+            }}>
+              <div style={{
+                height: '100%',
+                background: 'linear-gradient(90deg, #1e3a8a, #059669)',
+                borderRadius: '999px',
+                animation: 'pulseDot 1.5s infinite'
+              }} />
+            </div>
           </div>
         </div>
       )}
 
-      {/* Header */}
-      <header style={{ marginBottom: '36px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-          <span style={{
-            background: 'rgba(99,102,241,0.15)', color: '#818cf8',
-            fontSize: '0.75rem', fontWeight: 700, padding: '4px 10px',
-            borderRadius: '999px', border: '1px solid rgba(99,102,241,0.3)', letterSpacing: '0.05em'
-          }}>SIH 26018 • DO&LR</span>
-          <span style={{
-            background: 'rgba(16,185,129,0.15)', color: '#34d399',
-            fontSize: '0.75rem', fontWeight: 700, padding: '4px 10px',
-            borderRadius: '999px', border: '1px solid rgba(16,185,129,0.3)', letterSpacing: '0.05em'
-          }}>PHASE 5</span>
+      {/* 2. Step Flow Guide */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, 1fr)',
+        gap: '12px',
+        marginBottom: '28px',
+        background: '#ffffff',
+        padding: '16px 20px',
+        borderRadius: '12px',
+        border: '1px solid var(--border-card)',
+        boxShadow: 'var(--shadow-sm)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#1e3a8a', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 700 }}>
+            1
+          </div>
+          <div>
+            <p style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>अपलोड एवं प्री-प्रोसेसिंग</p>
+            <p style={{ fontSize: '0.725rem', color: '#64748b', margin: 0 }}>PDF / JPG प्रमाणित प्रति</p>
+          </div>
         </div>
-        <h1 style={{ fontSize: '2rem', fontWeight: 800, color: '#f3f4f6', letterSpacing: '-0.02em' }}>
-          Upload Land Record
-        </h1>
-        <p style={{ color: '#9ca3af', marginTop: '6px', fontSize: '0.95rem' }}>
-          Upload a certified copy (PDF / JPG / PNG). The system will extract and validate all fields automatically.
-        </p>
-      </header>
 
-      {/* Drop zone */}
-      <div className="glass-card" style={{ padding: '28px', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#059669', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 700 }}>
+            2
+          </div>
+          <div>
+            <p style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>AI OCR व वर्गीकरण</p>
+            <p style={{ fontSize: '0.725rem', color: '#64748b', margin: 0 }}>सह-खातेदार, अंश एवं खसरा</p>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#64748b', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 700 }}>
+            3
+          </div>
+          <div>
+            <p style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>सत्यापन एवं पंजीयन</p>
+            <p style={{ fontSize: '0.725rem', color: '#64748b', margin: 0 }}>मानव-सत्यापन एवं MySQL सेव</p>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Page Header */}
+      <div style={{ marginBottom: '24px' }}>
+        <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em', margin: '0 0 6px' }}>
+          भू-अभिलेख दस्तावेज़ डिजिटलीकरण स्टूडियो
+        </h1>
+        <p style={{ color: '#475569', fontSize: '0.9rem', margin: 0 }}>
+          मध्य प्रदेश भूलेख अथवा किसी भी राज्य का प्रमाणित राजस्व दस्तावेज़ अपलोड करें। प्रणाली स्वतः देवनागरी टेक्स्ट निकालकर सत्यापित करेगी।
+        </p>
+      </div>
+
+      {/* 4. Quick Demo Preset Buttons (SIH Judge Feature!) */}
+      <div style={{
+        background: '#eff6ff',
+        border: '1px solid #bfdbfe',
+        borderRadius: '12px',
+        padding: '16px 20px',
+        marginBottom: '24px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '14px'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <Sparkles size={20} color="#1d4ed8" />
+          <div>
+            <p style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e3a8a', margin: 0 }}>
+              त्वरित डेमो परीक्षण (Instant Judge Evaluation Presets)
+            </p>
+            <p style={{ fontSize: '0.75rem', color: '#3b82f6', margin: 0 }}>
+              फ़ाइल ढूंढने की आवश्यकता नहीं — वास्तविक प्रमाणित प्रतियों को एक क्लिक में लोड करें:
+            </p>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="btn-gov-secondary"
+            onClick={() => loadSamplePreset('CertifiedCopy_Bhu-AdhikarPustika_25030879728.pdf', 'भू-अधिकार पुस्तिका (Form 4)')}
+            disabled={uploading}
+            style={{ fontSize: '0.8rem', padding: '7px 14px', background: '#ffffff', borderColor: '#93c5fd' }}
+          >
+            <FileCheck size={14} color="#1d4ed8" /> भू-अधिकार पुस्तिका (Form 4)
+          </button>
+
+          <button
+            type="button"
+            className="btn-gov-secondary"
+            onClick={() => loadSamplePreset('CertifiedCopy_Khatoni(B1)Copy_25030868731.pdf', 'खतौनी बी-1 (Form 7)')}
+            disabled={uploading}
+            style={{ fontSize: '0.8rem', padding: '7px 14px', background: '#ffffff', borderColor: '#93c5fd' }}
+          >
+            <FileCheck size={14} color="#1d4ed8" /> खतौनी बी-1 (Form 7)
+          </button>
+        </div>
+      </div>
+
+      {/* 5. Error Alert */}
+      {error && (
+        <div className="gov-alert error">
+          <AlertCircle size={20} style={{ flexShrink: 0 }} />
+          <div>
+            <strong>त्रुटि:</strong> {error}
+          </div>
+        </div>
+      )}
+
+      {/* 6. Drag and Drop Zone */}
+      <div className="gov-card" style={{ padding: '32px', marginBottom: '24px' }}>
         <div
-          className={dropCls}
+          className={`gov-dropzone ${dragging ? 'drag-over' : ''} ${file ? 'has-file' : ''}`}
           onDragOver={onDragOver}
           onDragLeave={onDragLeave}
           onDrop={onDrop}
@@ -157,107 +284,134 @@ export default function UploadPage() {
             type="file"
             accept=".pdf,.jpg,.jpeg,.png"
             style={{ display: 'none' }}
-            onChange={onFileChange}
+            onChange={e => {
+              const picked = e.target.files?.[0];
+              if (picked) pickFile(picked);
+            }}
           />
 
           {file ? (
-            <>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
               <div style={{
-                width: 56, height: 56, borderRadius: '14px',
-                background: 'rgba(16,185,129,0.15)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center'
+                width: '54px',
+                height: '54px',
+                borderRadius: '12px',
+                background: '#ecfdf5',
+                color: '#059669',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
               }}>
-                <FileText size={26} color="#34d399" />
+                <FileText size={28} />
               </div>
               <div>
-                <p style={{ fontWeight: 600, color: '#f3f4f6', fontSize: '1rem' }}>{file.name}</p>
-                <p style={{ color: '#6b7280', fontSize: '0.85rem', marginTop: '4px' }}>
-                  {(file.size / 1024).toFixed(1)} KB · {file.type || 'unknown type'}
+                <p style={{ fontWeight: 700, color: '#0f172a', fontSize: '1rem', margin: '0 0 2px' }}>
+                  {file.name}
+                </p>
+                <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0 }}>
+                  {(file.size / 1024).toFixed(1)} KB • {file.type || 'दस्तावेज़'}
                 </p>
               </div>
               <button
-                className="btn-ghost"
+                type="button"
+                className="btn-gov-secondary"
                 onClick={(e) => { e.stopPropagation(); clearFile(); }}
-                style={{ marginTop: '4px' }}
+                style={{ marginTop: '6px', fontSize: '0.78rem', padding: '5px 12px' }}
               >
-                <X size={15} /> Remove
+                <X size={13} /> फ़ाइल हटाएं
               </button>
-            </>
+            </div>
           ) : (
-            <>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
               <div style={{
-                width: 64, height: 64, borderRadius: '18px',
-                background: 'rgba(99,102,241,0.12)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center'
+                width: '60px',
+                height: '60px',
+                borderRadius: '16px',
+                background: '#eff6ff',
+                color: '#1d4ed8',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
               }}>
-                <UploadCloud size={30} color="#818cf8" />
+                <UploadCloud size={32} />
               </div>
               <div>
-                <p style={{ fontWeight: 600, color: '#e5e7eb', fontSize: '1.05rem' }}>
-                  Drag & drop your document here
+                <p style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0f172a', margin: '0 0 4px' }}>
+                  फ़ाइल को यहाँ खींचें अथवा ब्राउज़ करें
                 </p>
-                <p style={{ color: '#6b7280', fontSize: '0.85rem', marginTop: '4px' }}>
-                  or click to browse — PDF, JPG, PNG up to 50 MB
+                <p style={{ fontSize: '0.85rem', color: '#64748b', margin: 0 }}>
+                  प्रमाणित PDF प्रतिलिपि अथवा स्पष्ट स्कैन की गई इमेज (अधिकतम 50 MB)
                 </p>
               </div>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center' }}>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
                 {ACCEPTED_TYPES.map(t => (
                   <span key={t} style={{
-                    background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
-                    borderRadius: '6px', padding: '3px 10px', fontSize: '0.8rem', color: '#9ca3af'
-                  }}>{t.toUpperCase()}</span>
+                    background: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '6px',
+                    padding: '2px 8px',
+                    fontSize: '0.75rem',
+                    color: '#475569',
+                    fontFamily: 'var(--font-mono)'
+                  }}>
+                    {t.toUpperCase()}
+                  </span>
                 ))}
               </div>
-            </>
+            </div>
           )}
         </div>
       </div>
 
-      {/* Error banner */}
-      {error && (
-        <div className="validation-banner error" style={{ marginBottom: '16px' }}>
-          <AlertCircle size={18} style={{ flexShrink: 0, marginTop: '1px' }} />
-          <span>{error}</span>
-        </div>
-      )}
+      {/* 7. Supported Formats Information Box */}
+      <div className="gov-card" style={{ padding: '20px 24px', marginBottom: '28px' }}>
+        <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '12px' }}>
+          समर्थित अधिकार अभिलेख प्रारूप (Supported Document Templates)
+        </h4>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div style={{ padding: '14px', borderRadius: '8px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+            <span className="gov-badge info" style={{ marginBottom: '6px' }}>प्रारूप-4 (Form 4)</span>
+            <p style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.9rem', margin: '4px 0 2px' }}>
+              भू-अधिकार पुस्तिका
+            </p>
+            <p style={{ fontSize: '0.78rem', color: '#64748b', margin: 0 }}>
+              खाता संख्यांक, CLRM यूनिक ID, भूमिस्वामी नाम, सह-खातेदारों के अंश (1/3, 1/15, 1/9) एवं खसरा-वार क्षेत्रफल।
+            </p>
+          </div>
 
-      {/* Supported documents info */}
-      <div className="glass-card" style={{ padding: '20px', marginBottom: '24px' }}>
-        <p className="section-label">Supported Document Types</p>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-          {[
-            { name: 'Bhu-Adhikar Pustika', form: 'Form 4 (प्रारूप-4)', color: '#818cf8' },
-            { name: 'Khatoni B-1 (Jamabandi)', form: 'Form 7 (प्रारूप-7)', color: '#34d399' },
-          ].map(d => (
-            <div key={d.name} style={{
-              padding: '12px 14px', borderRadius: '10px',
-              background: 'rgba(255,255,255,0.03)',
-              border: '1px solid rgba(255,255,255,0.07)'
-            }}>
-              <p style={{ fontWeight: 600, color: d.color, fontSize: '0.9rem' }}>{d.name}</p>
-              <p style={{ color: '#6b7280', fontSize: '0.8rem', marginTop: '3px' }}>{d.form}</p>
-            </div>
-          ))}
+          <div style={{ padding: '14px', borderRadius: '8px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+            <span className="gov-badge verified" style={{ marginBottom: '6px' }}>प्रारूप-7 (Form 7)</span>
+            <p style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.9rem', margin: '4px 0 2px' }}>
+              खातावार खतौनी अथवा जमाबंदी
+            </p>
+            <p style={{ fontSize: '0.78rem', color: '#64748b', margin: 0 }}>
+              कुल रकबा (हेक्टेयर), कुल खसरा संख्या, भू-राजस्व (लगान मांग ₹), एवं संयुक्त खातेदारों का विवरण।
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* Process button */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+      {/* 8. Action Bar */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '12px' }}>
         {file && (
-          <button className="btn-ghost" onClick={clearFile}>
-            <X size={16} /> Clear
+          <button
+            type="button"
+            className="btn-gov-secondary"
+            onClick={clearFile}
+            disabled={uploading}
+          >
+            रद्द करें
           </button>
         )}
+
         <button
-          className="btn-primary"
-          onClick={handleUpload}
+          type="button"
+          className="btn-gov-primary"
+          onClick={() => executeUpload(file)}
           disabled={!file || uploading}
-          style={{ minWidth: '200px', justifyContent: 'center', padding: '12px 28px', fontSize: '1rem' }}
+          style={{ padding: '11px 28px', fontSize: '0.95rem' }}
         >
-          {uploading
-            ? <><Loader2 size={18} className="animate-spin" /> Processing…</>
-            : <><UploadCloud size={18} /> Process Document</>
-          }
+          <UploadCloud size={18} /> दस्तावेज़ प्रोसेस करें <ArrowRight size={16} />
         </button>
       </div>
 

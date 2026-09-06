@@ -1,35 +1,40 @@
 import React from 'react';
 
 /**
- * ConfidenceBadge — shows a color-coded pill for a confidence score.
- * score >= 0.90 → green
- * score >= 0.70 → amber
- * score <  0.70 → red
- * score null/0  → gray
+ * ConfidenceBadge — Displays an official color-coded confidence pill.
+ * score >= 0.80 → Emerald Green (High confidence)
+ * score >= 0.60 → Amber (Moderate / Verify)
+ * score <  0.60 → Rose / Red (Low / Attention required)
  */
 export default function ConfidenceBadge({ score }) {
   if (score === null || score === undefined) {
-    return <span className="conf-badge gray">—</span>;
+    return <span className="conf-pill neutral">—</span>;
   }
 
-  let cls, label;
-  if (score >= 0.90) {
-    cls = 'green'; label = `${Math.round(score * 100)}%`;
-  } else if (score >= 0.70) {
-    cls = 'amber'; label = `${Math.round(score * 100)}%`;
+  let tierClass = 'neutral';
+  const pct = Math.round(score * 100);
+
+  if (score >= 0.80) {
+    tierClass = 'high';
+  } else if (score >= 0.60) {
+    tierClass = 'med';
   } else if (score > 0) {
-    cls = 'red';   label = `${Math.round(score * 100)}%`;
-  } else {
-    cls = 'gray';  label = '—';
+    tierClass = 'low';
   }
 
-  return <span className={`conf-badge ${cls}`}>{label}</span>;
+  return (
+    <span className={`conf-pill ${tierClass}`} title={`Extraction Confidence: ${pct}%`}>
+      {score > 0 ? `${pct}%` : '0%'}
+    </span>
+  );
 }
 
-/** Returns the CSS class name for conf-field wrapper */
+/**
+ * Returns the CSS class name for input border highlights.
+ */
 export function confFieldClass(score) {
-  if (score === null || score === undefined || score === 0) return '';
-  if (score >= 0.90) return 'conf-field conf-green';
-  if (score >= 0.70) return 'conf-field conf-amber';
-  return 'conf-field conf-red';
+  if (score === null || score === undefined || score === 0) return 'conf-input-wrap';
+  if (score >= 0.80) return 'conf-input-wrap conf-high';
+  if (score >= 0.60) return 'conf-input-wrap conf-med';
+  return 'conf-input-wrap conf-low';
 }
