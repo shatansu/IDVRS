@@ -48,6 +48,10 @@ def clean_and_normalize_text(text: str) -> str:
     text = text.replace("\x00", "")
     # Normalize Unicode to NFC
     normalized = unicodedata.normalize("NFC", text)
+    # Deduplicate consecutive Devanagari vowel signs / matras / halants caused by PDF font glitches
+    # (e.g. 'पन्नाा' -> 'पन्ना', 'ग्रााम' -> 'ग्राम', 'मन्नूू' -> 'मन्नू', 'हेक्टेेयर' -> 'हेक्टेयर')
+    import re
+    normalized = re.sub(r"([\u0901-\u0903\u093E-\u094D])\1+", r"\1", normalized)
     # Clean trailing spaces per line
     lines = [line.strip() for line in normalized.splitlines()]
     return "\n".join(lines)

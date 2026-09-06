@@ -51,7 +51,7 @@ async def upload_document(
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unsupported file type '{ext}'. Allowed extensions: {', '.join(sorted(ALLOWED_EXTENSIONS))}"
+            detail=f"अमान्य फ़ाइल प्रकार '{ext}'। केवल PDF, JPG, PNG, TIFF, BMP, WEBP समर्थित हैं। / Unsupported file type '{ext}'. Allowed extensions: {', '.join(sorted(ALLOWED_EXTENSIONS))}"
         )
 
     # Generate unique storage filename
@@ -61,12 +61,43 @@ async def upload_document(
     try:
         # Save file to disk
         contents = await file.read()
+
+        # Check for empty file (0 bytes)
+        if len(contents) == 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="अपलोड की गई फ़ाइल खाली है (0 बाइट्स)। कृपया एक वैध भूमि रिकॉर्ड दस्तावेज़ अपलोड करें। / The uploaded file is empty (0 bytes). Please upload a valid document."
+            )
+
+        # Check for size limit (50 MB)
+        if len(contents) > 50 * 1024 * 1024:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail="फ़ाइल का आकार 50MB की अधिकतम सीमा से अधिक है। / File size exceeds the maximum limit of 50MB."
+            )
+
         with open(saved_path, "wb") as f:
             f.write(contents)
         logger.info(f"Saved uploaded file to {saved_path} ({len(contents)} bytes)")
 
         # Run extraction pipeline
-        extraction_result = extract_document(str(saved_path))
+        try:
+            extraction_result = extract_document(str(saved_path))
+        except Exception as extract_err:
+            logger.error(f"Extraction failed for {saved_path}: {extract_err}")
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"फ़ाइल को पढ़ा या प्रोसेस नहीं किया जा सका (संभवतः दूषित या अव्यवहार्य प्रारूप)। / Could not parse or process the file (file may be corrupted or invalid): {str(extract_err)}"
+            )
+
+        # Check for empty text extraction
+        extracted_text = extraction_result.get("full_text", "").strip()
+        if not extracted_text:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="दस्तावेज़ से कोई पठनीय पाठ नहीं मिला। कृपया सुनिश्चित करें कि दस्तावेज़ स्पष्ट है और रिक्त नहीं है। / No readable text could be extracted from this document. Please verify the document is legible and not blank."
+            )
+
         doc_type = infer_document_type(extraction_result["full_text"])
 
         # Phase 3: Run field extraction (regex + rule-based)
@@ -114,6 +145,9 @@ async def upload_document(
             "structured_data": structured_data,
         }
 
+    except HTTPException:
+        # Re-raise HTTP exceptions directly so proper status code & message reach the client
+        raise
     except Exception as exc:
         logger.error(f"Error processing uploaded document: {exc}", exc_info=True)
         # Attempt to record failed state in database if possible
@@ -133,5 +167,5 @@ async def upload_document(
 
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Extraction failed: {str(exc)}"
+            detail=f"दस्तावेज़ प्रसंस्करण में तकनीकी त्रुटि: {str(exc)} / Processing error: {str(exc)}"
         )

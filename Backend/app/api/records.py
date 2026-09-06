@@ -29,7 +29,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Khata, KhataOwner, KhataParcel
+from app.models import Khata, KhataOwner, KhataParcel, Document
 
 logger = logging.getLogger("app.api.records")
 
@@ -190,4 +190,32 @@ def save_record(payload: RecordIn, db: Session = Depends(get_db)):
         "parcels_saved": parcels_saved,
         "is_duplicate":  is_dup,
         "message":       "Record saved successfully."
+    }
+
+
+@router.delete("/records/{record_id}", status_code=status.HTTP_200_OK)
+def delete_record(record_id: int, db: Session = Depends(get_db)):
+    """Deletes a single khata record and cascades to its owners and parcels."""
+    khata = db.query(Khata).filter(Khata.id == record_id).first()
+    if not khata:
+        raise HTTPException(status_code=404, detail=f"Record #{record_id} not found.")
+    db.delete(khata)
+    db.commit()
+    logger.info(f"Record #{record_id} deleted successfully.")
+    return {"message": f"Record #{record_id} deleted successfully.", "deleted_id": record_id}
+
+
+@router.delete("/records", status_code=status.HTTP_200_OK)
+def reset_all_records(confirm: bool = False, db: Session = Depends(get_db)):
+    """Deletes all saved khatas and documents if confirm=True."""
+    if not confirm:
+        raise HTTPException(status_code=400, detail="Must provide ?confirm=true to wipe records.")
+    deleted_khatas = db.query(Khata).delete()
+    deleted_docs = db.query(Document).delete()
+    db.commit()
+    logger.info(f"Wiped all records: {deleted_khatas} khatas, {deleted_docs} documents.")
+    return {
+        "message": "All records purged successfully.",
+        "deleted_khatas": deleted_khatas,
+        "deleted_docs": deleted_docs
     }

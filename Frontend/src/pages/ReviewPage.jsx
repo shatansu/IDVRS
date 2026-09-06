@@ -137,6 +137,7 @@ export default function ReviewPage() {
   const [parcels, setParcels] = useState(() => initParcels(rawParcels));
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
+  const [hasEdits, setHasEdits] = useState(false);
 
   /* Document Viewer Controls */
   const [zoom, setZoom] = useState(100);
@@ -149,6 +150,7 @@ export default function ReviewPage() {
 
   /* Khata field handler */
   const updateKhata = (key, val) => {
+    setHasEdits(true);
     setKhata(prev => ({
       ...prev,
       [key]: { ...prev[key], value: val }
@@ -157,10 +159,12 @@ export default function ReviewPage() {
 
   /* Owner handlers */
   const updateOwner = (idx, key, val) => {
+    setHasEdits(true);
     setOwners(prev => prev.map((o, i) => i === idx ? { ...o, [key]: val } : o));
   };
 
   const addOwner = () => {
+    setHasEdits(true);
     setOwners(prev => [
       ...prev,
       {
@@ -179,15 +183,18 @@ export default function ReviewPage() {
       alert('कम से कम एक खातेदार होना अनिवार्य है।');
       return;
     }
+    setHasEdits(true);
     setOwners(prev => prev.filter((_, i) => i !== idx));
   };
 
   /* Parcel handlers */
   const updateParcel = (idx, key, val) => {
+    setHasEdits(true);
     setParcels(prev => prev.map((p, i) => i === idx ? { ...p, [key]: val } : p));
   };
 
   const addParcel = () => {
+    setHasEdits(true);
     setParcels(prev => [
       ...prev,
       {
@@ -207,8 +214,33 @@ export default function ReviewPage() {
       alert('कम से कम एक खसरा भू-खण्ड होना अनिवार्य है।');
       return;
     }
+    setHasEdits(true);
     setParcels(prev => prev.filter((_, i) => i !== idx));
   };
+
+  /* Keyboard shortcut: Ctrl+S / Cmd+S to save */
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault();
+        handleSave();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [khata, owners, parcels, saving]);
+
+  /* Unsaved edits warning on window close */
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (hasEdits && !saving) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasEdits, saving]);
 
   /* Save record to backend */
   const handleSave = async () => {
@@ -227,6 +259,7 @@ export default function ReviewPage() {
       };
 
       const res = await axios.post('/api/records', payload);
+      setHasEdits(false);
       showToast(`भू-अभिलेख सफलतापूर्वक पंजीकृत हुआ! खाता आईडी: #${res.data.khata_id}`, 'success');
 
       setTimeout(() => {
@@ -292,14 +325,42 @@ export default function ReviewPage() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {hasEdits ? (
+            <span style={{
+              fontSize: '0.75rem',
+              background: '#fef3c7',
+              color: '#92400e',
+              border: '1px solid #fde68a',
+              padding: '5px 10px',
+              borderRadius: '6px',
+              fontWeight: 600,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}>
+              <AlertTriangle size={13} /> असुरक्षित संपादन (Unsaved)
+            </span>
+          ) : (
+            <span style={{
+              fontSize: '0.75rem',
+              background: '#f8fafc',
+              color: '#64748b',
+              border: '1px solid #e2e8f0',
+              padding: '5px 10px',
+              borderRadius: '6px'
+            }}>
+              ✓ मूल एक्सट्रैक्शन
+            </span>
+          )}
           <button
             type="button"
             className="btn-gov-success"
             onClick={handleSave}
             disabled={saving}
+            title="कीबोर्ड शॉर्टकट: Ctrl+S"
             style={{ padding: '10px 24px', fontSize: '0.9rem' }}
           >
-            <Save size={16} /> {saving ? 'पंजीकरण हो रहा है...' : 'डेटाबेस में सहेजें (Save Record)'}
+            <Save size={16} /> {saving ? 'पंजीकरण हो रहा है...' : 'डेटाबेस में सहेजें (Ctrl+S)'}
           </button>
         </div>
       </div>
@@ -799,23 +860,27 @@ export default function ReviewPage() {
             </div>
           </div>
 
-          {/* Bottom Action Footer */}
+          {/* Bottom Action Footer (Sticky) */}
           <div style={{
-            background: '#ffffff',
-            padding: '20px 24px',
+            position: 'sticky',
+            bottom: '16px',
+            zIndex: 20,
+            background: 'rgba(255, 255, 255, 0.96)',
+            backdropFilter: 'blur(8px)',
+            padding: '16px 24px',
             borderRadius: '12px',
             border: '1px solid var(--border-card)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            boxShadow: 'var(--shadow-sm)'
+            boxShadow: '0 8px 24px -4px rgba(0,0,0,0.12), 0 2px 6px -1px rgba(0,0,0,0.06)'
           }}>
             <div>
               <p style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
                 सत्यापन पश्चात अंतिम अभिलेख पंजीकरण
               </p>
               <p style={{ fontSize: '0.75rem', color: '#64748b', margin: 0 }}>
-                डाटा सीधे राष्ट्रीय भू-अभिलेख डेटाबेस (MySQL) में सुरक्षित किया जाएगा
+                डाटा सीधे राष्ट्रीय भू-अभिलेख डेटाबेस (MySQL) में सुरक्षित किया जाएगा • शॉर्टकट: <kbd style={{ background: '#e2e8f0', padding: '1px 5px', borderRadius: '4px', fontSize: '0.7rem' }}>Ctrl + S</kbd>
               </p>
             </div>
 

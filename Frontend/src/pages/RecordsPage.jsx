@@ -4,7 +4,7 @@ import axios from 'axios';
 import {
   Search, FileText, AlertTriangle, CheckCircle2,
   Clock, Copy, ChevronRight, RefreshCw, Loader2,
-  Download, Filter, Users, Layers, ShieldCheck, X
+  Download, Filter, Users, Layers, ShieldCheck, X, Trash2
 } from 'lucide-react';
 
 /* ── Status Badge ──────────────────────────────────────────── */
@@ -141,6 +141,35 @@ export default function RecordsPage() {
     }
   };
 
+  const handleDeleteRecord = async (recordId, khataNumber) => {
+    if (!window.confirm(`क्या आप वाकई खाता संख्या "${khataNumber || recordId}" (रिकॉर्ड #${recordId}) को हटाना चाहते हैं? यह प्रक्रिया पूर्ववत नहीं की जा सकती।\n\nAre you sure you want to delete Record #${recordId}? This action cannot be undone.`)) {
+      return;
+    }
+    try {
+      await axios.delete(`/api/records/${recordId}`);
+      setRecords(prev => prev.filter(r => r.id !== recordId));
+      setTotal(prev => Math.max(0, prev - 1));
+    } catch (err) {
+      alert(err.response?.data?.detail || 'रिकॉर्ड हटाने में विफलता हुई।');
+    }
+  };
+
+  const handleResetAll = async () => {
+    const confirmInput = window.prompt(
+      'चेतावनी: यह सभी सहेजे गए भूमि रिकॉर्ड और अपलोड किए गए दस्तावेज़ों को स्थायी रूप से हटा देगा।\nजारी रखने के लिए नीचे "CONFIRM" लिखें:\n\nWARNING: This will permanently delete ALL saved land records and documents. Type "CONFIRM" to proceed:'
+    );
+    if (confirmInput !== 'CONFIRM') return;
+
+    try {
+      await axios.delete('/api/records?confirm=true');
+      setRecords([]);
+      setTotal(0);
+      alert('सभी रिकॉर्ड सफलतापूर्वक साफ़ कर दिए गए हैं। / All records have been purged.');
+    } catch (err) {
+      alert(err.response?.data?.detail || 'डेटा साफ़ करने में विफलता हुई।');
+    }
+  };
+
   /* Filter in memory by status tab */
   const filteredRecords = records.filter(r => {
     if (statusFilter === 'verified') return r.review_status === 'verified';
@@ -194,6 +223,17 @@ export default function RecordsPage() {
           >
             <Download size={15} /> CSV निर्यात करें (Export)
           </button>
+          {records.length > 0 && (
+            <button
+              type="button"
+              className="btn-gov-secondary"
+              onClick={handleResetAll}
+              title="परीक्षण हेतु सभी रिकॉर्ड हटाएं / Purge all for clean demo"
+              style={{ color: '#dc2626', borderColor: '#fecaca' }}
+            >
+              <Trash2 size={15} /> डेटा रीसेट (Reset)
+            </button>
+          )}
           <button
             type="button"
             className="btn-gov-primary"
@@ -399,20 +439,42 @@ export default function RecordsPage() {
                         {rec.parcel_count}
                       </span>
                     </td>
-                    <td onClick={e => e.stopPropagation()}>
-                      <button
-                        type="button"
-                        onClick={() => toggleVerify(rec)}
-                        disabled={updatingId === rec.id}
-                        title={rec.review_status === 'verified' ? 'समीक्षाधीन में बदलें' : 'सत्यापित करें'}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                      >
-                        {updatingId === rec.id ? (
-                          <Loader2 size={14} className="animate-spin" />
-                        ) : (
-                          <StatusBadge status={rec.review_status} isDuplicate={rec.is_duplicate_flag} />
-                        )}
-                      </button>
+                    <td onClick={e => e.stopPropagation()} style={{ whiteSpace: 'nowrap' }}>
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                        <button
+                          type="button"
+                          onClick={() => toggleVerify(rec)}
+                          disabled={updatingId === rec.id}
+                          title={rec.review_status === 'verified' ? 'समीक्षाधीन में बदलें' : 'सत्यापित करें'}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                        >
+                          {updatingId === rec.id ? (
+                            <Loader2 size={14} className="animate-spin" />
+                          ) : (
+                            <StatusBadge status={rec.review_status} isDuplicate={rec.is_duplicate_flag} />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteRecord(rec.id, rec.khata_number)}
+                          title="यह रिकॉर्ड हटाएं (Delete Record)"
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#94a3b8',
+                            cursor: 'pointer',
+                            padding: '4px 6px',
+                            borderRadius: '4px',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            transition: 'color 0.15s, background 0.15s'
+                          }}
+                          onMouseEnter={(e) => { e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.background = '#fef2f2'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.background = 'transparent'; }}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
                     </td>
                     <td style={{ textAlign: 'right', color: '#94a3b8' }}>
                       <ChevronRight size={16} />

@@ -215,6 +215,9 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
     ).scalar() or 0
 
     # Records by district (for bar chart) — group non-null districts
+    import re
+    doubled_matra_re = re.compile(r"([\u0901-\u0903\u093E-\u094D])\1+")
+
     district_rows = (
         db.query(Khata.district, func.count(Khata.id).label("count"))
         .filter(Khata.district.isnot(None))
@@ -223,9 +226,15 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
         .order_by(func.count(Khata.id).desc())
         .all()
     )
+    district_counts: dict[str, int] = {}
+    for row in district_rows:
+        if row.district:
+            clean_dist = doubled_matra_re.sub(r"\1", row.district.strip())
+            district_counts[clean_dist] = district_counts.get(clean_dist, 0) + row.count
+
     records_by_district = [
-        {"district": row.district, "count": row.count}
-        for row in district_rows
+        {"district": dist, "count": count}
+        for dist, count in sorted(district_counts.items(), key=lambda x: x[1], reverse=True)
     ]
 
     # Review status breakdown (for pie chart)

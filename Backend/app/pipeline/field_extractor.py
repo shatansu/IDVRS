@@ -53,11 +53,13 @@ def _missing() -> dict:
 # ---------------------------------------------------------------------------
 _ZWSP_AND_EXTRAS = re.compile(r"[\u200b\u200c\u200d\ufeff]+")
 _MULTI_SPACE = re.compile(r"[ \t]+")
+_DOUBLED_MATRAS = re.compile(r"([\u0901-\u0903\u093E-\u094D])\1+")
 
 def _norm(text: str) -> str:
-    """Strip zero-width chars and collapse spaces (keep newlines for line parsing)."""
+    """Strip zero-width chars, collapse spaces, and deduplicate font-glitched Devanagari matras."""
     text = _ZWSP_AND_EXTRAS.sub("", text)
     text = _MULTI_SPACE.sub(" ", text)
+    text = _DOUBLED_MATRAS.sub(r"\1", text)
     return text.strip()
 
 
