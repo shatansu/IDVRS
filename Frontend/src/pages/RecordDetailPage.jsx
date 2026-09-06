@@ -4,7 +4,7 @@ import axios from 'axios';
 import {
   ArrowLeft, CheckCircle2, Clock, Copy, Loader2,
   AlertTriangle, FileText, User, Users, Layers, Printer,
-  Shield, Building2, Download, Check
+  Shield, Building2, Download, Check, MapPin
 } from 'lucide-react';
 
 /* ── Status Pill ───────────────────────────────────────────── */
@@ -169,6 +169,16 @@ export default function RecordDetailPage() {
           <button
             type="button"
             className="btn-gov-secondary"
+            onClick={() => navigate(`/gis?recordId=${rec.id}`)}
+            title="भू-नक्शा / कैडस्ट्रल मानचित्र पर देखें"
+            style={{ color: '#0369a1', borderColor: '#bae6fd', background: '#f0f9ff' }}
+          >
+            <MapPin size={15} /> भू-नक्शा पर देखें (View on Map)
+          </button>
+
+          <button
+            type="button"
+            className="btn-gov-secondary"
             onClick={() => window.print()}
           >
             <Printer size={15} /> प्रमाणित प्रति प्रिंट करें (Print RoR)
@@ -328,9 +338,30 @@ export default function RecordDetailPage() {
                     <tr key={p.id || i}>
                       <td style={{ color: '#64748b', fontSize: '0.8rem', fontFamily: 'var(--font-mono)' }}>{i + 1}</td>
                       <td>
-                        <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: '#0f172a' }}>
-                          {p.survey_number || '—'}
-                        </span>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: '#0f172a' }}>
+                            {p.survey_number || '—'}
+                          </span>
+                          {p.survey_number && (
+                            <button
+                              type="button"
+                              onClick={() => navigate(`/gis?surveyNo=${encodeURIComponent(p.survey_number)}&recordId=${rec.id}`)}
+                              className="no-print"
+                              title="इस खसरे को भू-नक्शा पर देखें"
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: '#0284c7',
+                                cursor: 'pointer',
+                                padding: '2px',
+                                display: 'inline-flex',
+                                alignItems: 'center'
+                              }}
+                            >
+                              <MapPin size={13} />
+                            </button>
+                          )}
+                        </div>
                       </td>
                       <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem', color: '#64748b' }}>
                         {p.parcel_unique_id || '—'}

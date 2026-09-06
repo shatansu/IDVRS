@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-do
 import axios from 'axios';
 import {
   FileText, UploadCloud, BarChart3, Database,
-  CheckCircle2, AlertCircle, Shield, ExternalLink, HelpCircle
+  CheckCircle2, AlertCircle, Shield, ExternalLink, HelpCircle, Map
 } from 'lucide-react';
 
 import DashboardPage from './pages/DashboardPage';
@@ -11,6 +11,7 @@ import UploadPage from './pages/UploadPage';
 import ReviewPage from './pages/ReviewPage';
 import RecordsPage from './pages/RecordsPage';
 import RecordDetailPage from './pages/RecordDetailPage';
+import GISPage from './pages/GISPage';
 
 /* ── National GovTech Layout Component ──────────────────────── */
 function GovLayout({ children }) {
@@ -206,6 +207,15 @@ function GovLayout({ children }) {
             >
               <Database size={15} /> भू-अभिलेख पंजिका (Land Registry)
             </NavLink>
+
+            <NavLink
+              to="/gis"
+              className={({ isActive }) =>
+                isActive ? 'gov-nav-active' : 'gov-nav-idle'
+              }
+            >
+              <Map size={15} /> भू-नक्शा (Cadastral Map)
+            </NavLink>
           </nav>
         </div>
       </header>
@@ -298,6 +308,7 @@ export default function App() {
           <Route path="/review" element={<ReviewPage />} />
           <Route path="/records" element={<RecordsPage />} />
           <Route path="/records/:id" element={<RecordDetailPage />} />
+          <Route path="/gis" element={<GISPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </GovLayout>

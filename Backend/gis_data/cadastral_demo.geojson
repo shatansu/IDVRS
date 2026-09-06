@@ -1,0 +1,382 @@
+{
+  "type": "FeatureCollection",
+  "metadata": {
+    "dataset_name": "Simariya Cadastral Prototype Dataset",
+    "crs": "urn:ogc:def:crs:OGC:1.3:CRS84",
+    "crs_name": "WGS 84 (EPSG:4326)",
+    "coordinate_order": "[longitude, latitude]",
+    "geometry_status": "DEMO",
+    "source_type": "prototype",
+    "authoritative": false,
+    "provenance_notice": "Prototype polygons using survey numbers from the sample land records; geometry is synthetic/demo geometry. Not an authoritative government cadastral boundary.",
+    "state": "Madhya Pradesh",
+    "district": "Panna",
+    "tehsil": "Simariya",
+    "village": "Simariya"
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": "SIM-P096-1",
+      "properties": {
+        "parcel_id": "SIM-P096-1",
+        "survey_no": "96/1",
+        "village": "सिमरिया",
+        "village_en": "Simariya",
+        "tehsil": "सिमरिया",
+        "tehsil_en": "Simariya",
+        "district": "पन्ना",
+        "district_en": "Panna",
+        "state": "मध्य प्रदेश",
+        "state_en": "Madhya Pradesh",
+        "land_use": "कृषि (Agriculture)",
+        "geometry_status": "DEMO",
+        "source_type": "prototype",
+        "authoritative": false,
+        "disclaimer": "Prototype polygons using survey numbers from the sample land records; geometry is synthetic/demo geometry."
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [79.9800, 24.3235],
+            [79.9815, 24.3235],
+            [79.9815, 24.3248],
+            [79.9800, 24.3248],
+            [79.9800, 24.3235]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "SIM-P098-1",
+      "properties": {
+        "parcel_id": "SIM-P098-1",
+        "survey_no": "98/1",
+        "village": "सिमरिया",
+        "village_en": "Simariya",
+        "tehsil": "सिमरिया",
+        "tehsil_en": "Simariya",
+        "district": "पन्ना",
+        "district_en": "Panna",
+        "state": "मध्य प्रदेश",
+        "state_en": "Madhya Pradesh",
+        "land_use": "कृषि (Agriculture)",
+        "geometry_status": "DEMO",
+        "source_type": "prototype",
+        "authoritative": false,
+        "disclaimer": "Prototype polygons using survey numbers from the sample land records; geometry is synthetic/demo geometry."
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [79.9815, 24.3235],
+            [79.9830, 24.3235],
+            [79.9830, 24.3248],
+            [79.9815, 24.3248],
+            [79.9815, 24.3235]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "SIM-P099-1",
+      "properties": {
+        "parcel_id": "SIM-P099-1",
+        "survey_no": "99/1",
+        "village": "सिमरिया",
+        "village_en": "Simariya",
+        "tehsil": "सिमरिया",
+        "tehsil_en": "Simariya",
+        "district": "पन्ना",
+        "district_en": "Panna",
+        "state": "मध्य प्रदेश",
+        "state_en": "Madhya Pradesh",
+        "land_use": "कृषि (Agriculture)",
+        "geometry_status": "DEMO",
+        "source_type": "prototype",
+        "authoritative": false,
+        "disclaimer": "Prototype polygons using survey numbers from the sample land records; geometry is synthetic/demo geometry."
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [79.9830, 24.3235],
+            [79.9842, 24.3235],
+            [79.9842, 24.3248],
+            [79.9830, 24.3248],
+            [79.9830, 24.3235]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "SIM-P100",
+      "properties": {
+        "parcel_id": "SIM-P100",
+        "survey_no": "100",
+        "village": "सिमरिया",
+        "village_en": "Simariya",
+        "tehsil": "सिमरिया",
+        "tehsil_en": "Simariya",
+        "district": "पन्ना",
+        "district_en": "Panna",
+        "state": "मध्य प्रदेश",
+        "state_en": "Madhya Pradesh",
+        "land_use": "कृषि (Agriculture)",
+        "geometry_status": "DEMO",
+        "source_type": "prototype",
+        "authoritative": false,
+        "disclaimer": "Prototype polygons using survey numbers from the sample land records; geometry is synthetic/demo geometry."
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [79.9842, 24.3235],
+            [79.9858, 24.3235],
+            [79.9858, 24.3248],
+            [79.9842, 24.3248],
+            [79.9842, 24.3235]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "SIM-P101",
+      "properties": {
+        "parcel_id": "SIM-P101",
+        "survey_no": "101",
+        "village": "सिमरिया",
+        "village_en": "Simariya",
+        "tehsil": "सिमरिया",
+        "tehsil_en": "Simariya",
+        "district": "पन्ना",
+        "district_en": "Panna",
+        "state": "मध्य प्रदेश",
+        "state_en": "Madhya Pradesh",
+        "land_use": "कृषि (Agriculture)",
+        "geometry_status": "DEMO",
+        "source_type": "prototype",
+        "authoritative": false,
+        "disclaimer": "Prototype polygons using survey numbers from the sample land records; geometry is synthetic/demo geometry."
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [79.9800, 24.3222],
+            [79.9815, 24.3222],
+            [79.9815, 24.3235],
+            [79.9800, 24.3235],
+            [79.9800, 24.3222]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "SIM-P102-1",
+      "properties": {
+        "parcel_id": "SIM-P102-1",
+        "survey_no": "102/1",
+        "village": "सिमरिया",
+        "village_en": "Simariya",
+        "tehsil": "सिमरिया",
+        "tehsil_en": "Simariya",
+        "district": "पन्ना",
+        "district_en": "Panna",
+        "state": "मध्य प्रदेश",
+        "state_en": "Madhya Pradesh",
+        "land_use": "कृषि (Agriculture)",
+        "geometry_status": "DEMO",
+        "source_type": "prototype",
+        "authoritative": false,
+        "disclaimer": "Prototype polygons using survey numbers from the sample land records; geometry is synthetic/demo geometry."
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [79.9815, 24.3222],
+            [79.9830, 24.3222],
+            [79.9830, 24.3235],
+            [79.9815, 24.3235],
+            [79.9815, 24.3222]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "SIM-P103-1",
+      "properties": {
+        "parcel_id": "SIM-P103-1",
+        "survey_no": "103/1",
+        "village": "सिमरिया",
+        "village_en": "Simariya",
+        "tehsil": "सिमरिया",
+        "tehsil_en": "Simariya",
+        "district": "पन्ना",
+        "district_en": "Panna",
+        "state": "मध्य प्रदेश",
+        "state_en": "Madhya Pradesh",
+        "land_use": "कृषि (Agriculture)",
+        "geometry_status": "DEMO",
+        "source_type": "prototype",
+        "authoritative": false,
+        "disclaimer": "Prototype polygons using survey numbers from the sample land records; geometry is synthetic/demo geometry."
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [79.9830, 24.3218],
+            [79.9858, 24.3218],
+            [79.9858, 24.3235],
+            [79.9830, 24.3235],
+            [79.9830, 24.3218]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "SIM-P104",
+      "properties": {
+        "parcel_id": "SIM-P104",
+        "survey_no": "104",
+        "village": "सिमरिया",
+        "village_en": "Simariya",
+        "tehsil": "सिमरिया",
+        "tehsil_en": "Simariya",
+        "district": "पन्ना",
+        "district_en": "Panna",
+        "state": "मध्य प्रदेश",
+        "state_en": "Madhya Pradesh",
+        "land_use": "बंजर (Barren Land)",
+        "geometry_status": "DEMO",
+        "source_type": "prototype",
+        "authoritative": false,
+        "disclaimer": "Prototype polygons using survey numbers from the sample land records; geometry is synthetic/demo geometry."
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [79.9858, 24.3222],
+            [79.9875, 24.3222],
+            [79.9875, 24.3235],
+            [79.9858, 24.3235],
+            [79.9858, 24.3222]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "SIM-P113-1",
+      "properties": {
+        "parcel_id": "SIM-P113-1",
+        "survey_no": "113/1",
+        "village": "सिमरिया",
+        "village_en": "Simariya",
+        "tehsil": "सिमरिया",
+        "tehsil_en": "Simariya",
+        "district": "पन्ना",
+        "district_en": "Panna",
+        "state": "मध्य प्रदेश",
+        "state_en": "Madhya Pradesh",
+        "land_use": "कृषि (Agriculture)",
+        "geometry_status": "DEMO",
+        "source_type": "prototype",
+        "authoritative": false,
+        "disclaimer": "Prototype polygons using survey numbers from the sample land records; geometry is synthetic/demo geometry."
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [79.9800, 24.3208],
+            [79.9818, 24.3208],
+            [79.9818, 24.3222],
+            [79.9800, 24.3222],
+            [79.9800, 24.3208]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "SIM-P114",
+      "properties": {
+        "parcel_id": "SIM-P114",
+        "survey_no": "114",
+        "village": "सिमरिया",
+        "village_en": "Simariya",
+        "tehsil": "सिमरिया",
+        "tehsil_en": "Simariya",
+        "district": "पन्ना",
+        "district_en": "Panna",
+        "state": "मध्य प्रदेश",
+        "state_en": "Madhya Pradesh",
+        "land_use": "चारागाह (Pasture)",
+        "geometry_status": "DEMO",
+        "source_type": "prototype",
+        "authoritative": false,
+        "disclaimer": "Prototype polygons using survey numbers from the sample land records; geometry is synthetic/demo geometry."
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [79.9818, 24.3208],
+            [79.9835, 24.3208],
+            [79.9835, 24.3222],
+            [79.9818, 24.3222],
+            [79.9818, 24.3208]
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "SIM-P105",
+      "properties": {
+        "parcel_id": "SIM-P105",
+        "survey_no": "105",
+        "village": "सिमरिया",
+        "village_en": "Simariya",
+        "tehsil": "सिमरिया",
+        "tehsil_en": "Simariya",
+        "district": "पन्ना",
+        "district_en": "Panna",
+        "state": "मध्य प्रदेश",
+        "state_en": "Madhya Pradesh",
+        "land_use": "कृषि (Agriculture)",
+        "geometry_status": "DEMO",
+        "source_type": "prototype",
+        "authoritative": false,
+        "disclaimer": "Prototype polygons using survey numbers from the sample land records; geometry is synthetic/demo geometry."
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [79.9835, 24.3208],
+            [79.9858, 24.3208],
+            [79.9858, 24.3218],
+            [79.9835, 24.3218],
+            [79.9835, 24.3208]
+          ]
+        ]
+      }
+    }
+  ]
+}

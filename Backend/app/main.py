@@ -12,6 +12,7 @@ from app.init_db import create_database_if_not_exists, init_tables
 from app.api.upload import router as upload_router
 from app.api.records import router as records_router
 from app.api.dashboard import router as dashboard_router
+from app.api.gis import router as gis_router
 
 # Setup logging
 logging.basicConfig(
@@ -50,6 +51,7 @@ app.add_middleware(
 app.include_router(upload_router)
 app.include_router(records_router)
 app.include_router(dashboard_router)
+app.include_router(gis_router)
 
 @app.get("/", tags=["General"])
 def root():
