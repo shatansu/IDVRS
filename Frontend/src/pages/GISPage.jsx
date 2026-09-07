@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 import { MapContainer, TileLayer, GeoJSON, useMap } from 'react-leaflet';
 import L from 'leaflet';
@@ -50,6 +51,7 @@ const DEFAULT_ZOOM = 16;
 export default function GISPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   /* ── Core Data State ────────────────────────────────────── */
   const [features, setFeatures] = useState([]);
@@ -250,7 +252,7 @@ export default function GISPage() {
         if (bounds.isValid()) setMapBounds(bounds);
       }
     } catch (err) {
-      alert('संपूर्ण खाता विवरण लोड करने में विफलता हुई।');
+      alert(t('gis.holding_fail'));
     }
   };
 
@@ -327,26 +329,26 @@ export default function GISPage() {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
             <span className="gov-badge info">
-              <Layers size={13} /> भू-नक्शा एवं कैडस्ट्रल मानचित्र (Cadastral Map Engine)
+              <Layers size={13} /> {t('gis.badge')}
             </span>
-            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>• WGS 84 (EPSG:4326)</span>
+            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>{t('gis.crs')}</span>
           </div>
           <h1 style={{ fontSize: '1.65rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em', margin: 0 }}>
-            डिजिटल भू-नक्शा एवं स्थानिक भू-खण्ड विज़ुअलाइज़ेशन
+            {t('gis.title')}
           </h1>
           <p style={{ color: '#475569', fontSize: '0.875rem', marginTop: '4px' }}>
-            अभिलेख पंजिका (MySQL Records) और कैडस्ट्रल पार्सल ज्यामिति का 5-बिंदु लिंकेज: राज्य, जिला, तहसील, ग्राम एवं खसरा संख्या
+            {t('gis.subtitle')}
           </p>
         </div>
 
         {/* Quick KPI Chips */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', padding: '6px 14px', borderRadius: '8px', textAlign: 'center' }}>
-            <span style={{ fontSize: '0.7rem', color: '#166534', fontWeight: 700, display: 'block' }}>सत्यापित खसरे (Matched)</span>
+            <span style={{ fontSize: '0.7rem', color: '#166534', fontWeight: 700, display: 'block' }}>{t('gis.chip_matched')}</span>
             <strong style={{ fontSize: '1.1rem', color: '#15803d', fontFamily: 'var(--font-mono)' }}>{matchedCount}</strong>
           </div>
           <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '6px 14px', borderRadius: '8px', textAlign: 'center' }}>
-            <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 700, display: 'block' }}>असंबद्ध खसरे (Unmatched)</span>
+            <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 700, display: 'block' }}>{t('gis.chip_unmatched')}</span>
             <strong style={{ fontSize: '1.1rem', color: '#475569', fontFamily: 'var(--font-mono)' }}>{unmatchedCount}</strong>
           </div>
         </div>
@@ -361,7 +363,7 @@ export default function GISPage() {
       }}>
         <AlertTriangle size={18} style={{ flexShrink: 0, color: '#d97706' }} />
         <div>
-          <strong>प्रोटोटाइप स्थानिक डेटा सूचना (Prototype GIS Notice):</strong> यहाँ प्रदर्शित खसरा सीमाएं नमूना भूमि अभिलेखों के खसरा नंबरों पर आधारित <strong>सिंथेटिक / प्रोटोटाइप ज्यामिति (Demo Geometry)</strong> हैं। यह कोई आधिकारिक सरकारी भू-नक्शा सीमा नहीं है।
+          <strong>{t('gis.disclaimer_title')}</strong> {t('gis.disclaimer_body')} <strong>{t('gis.disclaimer_demo')}</strong>{t('gis.disclaimer_end')}
         </div>
       </div>
 
@@ -375,7 +377,7 @@ export default function GISPage() {
             {/* State Filter */}
             <div style={{ minWidth: '150px', flex: '1 1 150px' }}>
               <label style={{ display: 'block', fontSize: '0.725rem', fontWeight: 700, color: '#475569', marginBottom: '3px' }}>
-                राज्य (State)
+                {t('gis.filter_state')}
               </label>
               <select
                 value={selectedState}
@@ -383,7 +385,7 @@ export default function GISPage() {
                 className="gov-input"
                 style={{ padding: '7px 10px', fontSize: '0.85rem' }}
               >
-                <option value="">सभी राज्य (All)</option>
+                <option value="">{t('gis.filter_state_all')}</option>
                 {availableStates.map(s => (
                   <option key={s} value={s}>{s}</option>
                 ))}
@@ -393,7 +395,7 @@ export default function GISPage() {
             {/* District Filter — options depend on selectedState */}
             <div style={{ minWidth: '150px', flex: '1 1 150px' }}>
               <label style={{ display: 'block', fontSize: '0.725rem', fontWeight: 700, color: '#475569', marginBottom: '3px' }}>
-                जिला (District)
+                {t('gis.filter_district')}
               </label>
               <select
                 value={selectedDistrict}
@@ -402,7 +404,7 @@ export default function GISPage() {
                 style={{ padding: '7px 10px', fontSize: '0.85rem' }}
                 disabled={availableDistricts.length === 0}
               >
-                <option value="">सभी जिले (All)</option>
+                <option value="">{t('gis.filter_district_all')}</option>
                 {availableDistricts.map(d => (
                   <option key={d} value={d}>{d}</option>
                 ))}
@@ -412,7 +414,7 @@ export default function GISPage() {
             {/* Tehsil Filter — options depend on selectedDistrict */}
             <div style={{ minWidth: '150px', flex: '1 1 150px' }}>
               <label style={{ display: 'block', fontSize: '0.725rem', fontWeight: 700, color: '#475569', marginBottom: '3px' }}>
-                तहसील (Tehsil)
+                {t('gis.filter_tehsil')}
               </label>
               <select
                 value={selectedTehsil}
@@ -421,7 +423,7 @@ export default function GISPage() {
                 style={{ padding: '7px 10px', fontSize: '0.85rem' }}
                 disabled={availableTehsils.length === 0}
               >
-                <option value="">सभी तहसील (All)</option>
+                <option value="">{t('gis.filter_tehsil_all')}</option>
                 {availableTehsils.map(t => (
                   <option key={t} value={t}>{t}</option>
                 ))}
@@ -431,7 +433,7 @@ export default function GISPage() {
             {/* Village Filter — options depend on selectedTehsil */}
             <div style={{ minWidth: '150px', flex: '1 1 150px' }}>
               <label style={{ display: 'block', fontSize: '0.725rem', fontWeight: 700, color: '#475569', marginBottom: '3px' }}>
-                ग्राम (Village)
+                {t('gis.filter_village')}
               </label>
               <select
                 value={selectedVillage}
@@ -440,7 +442,7 @@ export default function GISPage() {
                 style={{ padding: '7px 10px', fontSize: '0.85rem' }}
                 disabled={availableVillages.length === 0}
               >
-                <option value="">सभी ग्राम (All)</option>
+                <option value="">{t('gis.filter_village_all')}</option>
                 {availableVillages.map(v => (
                   <option key={v} value={v}>{v}</option>
                 ))}
@@ -455,13 +457,13 @@ export default function GISPage() {
             {/* General Search */}
             <div style={{ minWidth: '240px', flex: '2 1 240px' }}>
               <label style={{ display: 'block', fontSize: '0.725rem', fontWeight: 700, color: '#475569', marginBottom: '3px' }}>
-                खसरा संख्या / खाता संख्या / पार्सल आईडी खोजें
+                {t('gis.search_label')}
               </label>
               <div style={{ position: 'relative' }}>
                 <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
                 <input
                   type="text"
-                  placeholder="उदा. 101, 96/1, 2305, SIM-P101..."
+                  placeholder={t('gis.search_placeholder')}
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   className="gov-input"
@@ -473,16 +475,16 @@ export default function GISPage() {
             {/* Action Buttons */}
             <div style={{ display: 'flex', gap: '8px' }}>
               <button type="submit" className="btn-gov-primary" style={{ padding: '8px 18px', fontSize: '0.85rem' }}>
-                <Search size={14} /> पार्सल खोजें
+                <Search size={14} /> {t('gis.btn_search')}
               </button>
               <button
                 type="button"
                 className="btn-gov-secondary"
                 onClick={handleResetFilters}
                 style={{ padding: '8px 14px', fontSize: '0.85rem' }}
-                title="सभी फ़िल्टर साफ़ करें और संपूर्ण नक्शा पुनः लोड करें"
+                title={t('gis.btn_reset_title')}
               >
-                <RotateCcw size={14} /> रीसेट
+                <RotateCcw size={14} /> {t('gis.btn_reset')}
               </button>
             </div>
 
@@ -500,10 +502,10 @@ export default function GISPage() {
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span style={{ background: '#059669', color: '#ffffff', padding: '3px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700 }}>
-              खाता संख्या: {entireHolding.khata_number}
+              {t('gis.holding_badge')} {entireHolding.khata_number}
             </span>
             <span style={{ fontSize: '0.85rem', color: '#065f46', fontWeight: 600 }}>
-              संपूर्ण खाता धारक खसरे: <strong>{entireHolding.parcels.length}</strong> खसरे • कुल दर्ज रकबा: <strong>{entireHolding.total_recorded_area}</strong> हे. ({entireHolding.village})
+              {t('gis.holding_parcels')} <strong>{entireHolding.parcels.length}</strong> {t('gis.holding_parcels_unit')} • {t('gis.holding_area')} <strong>{entireHolding.total_recorded_area}</strong> {t('gis.holding_area_unit')} ({entireHolding.village})
             </span>
           </div>
           <button
@@ -512,7 +514,7 @@ export default function GISPage() {
             onClick={() => setEntireHolding(null)}
             style={{ padding: '4px 10px', fontSize: '0.75rem', borderColor: '#6ee7b7', color: '#047857' }}
           >
-            होल्डिंग हाइलाइट हटाएं
+            {t('gis.holding_clear')}
           </button>
         </div>
       )}
@@ -537,17 +539,17 @@ export default function GISPage() {
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <MapPin size={14} color="#1e3a8a" />
-              <span>कैडस्ट्रल शीट: <strong>सिमरिया (Simariya)</strong> • खसरा पॉलीगॉन स्तर</span>
+              <span>{t('gis.map_sheet')} <strong>Simariya</strong> {t('gis.map_level')}</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ width: '10px', height: '10px', background: '#3b82f6', borderRadius: '2px', display: 'inline-block' }} /> खसरा
+                <span style={{ width: '10px', height: '10px', background: '#3b82f6', borderRadius: '2px', display: 'inline-block' }} /> {t('gis.legend_khasra')}
               </span>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ width: '10px', height: '10px', background: '#fbbf24', borderRadius: '2px', display: 'inline-block' }} /> चयनित
+                <span style={{ width: '10px', height: '10px', background: '#fbbf24', borderRadius: '2px', display: 'inline-block' }} /> {t('gis.legend_selected')}
               </span>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ width: '10px', height: '10px', background: '#10b981', borderRadius: '2px', display: 'inline-block' }} /> होल्डिंग
+                <span style={{ width: '10px', height: '10px', background: '#10b981', borderRadius: '2px', display: 'inline-block' }} /> {t('gis.legend_holding')}
               </span>
             </div>
           </div>
@@ -560,7 +562,7 @@ export default function GISPage() {
                 zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center',
                 gap: '8px', fontSize: '0.9rem', color: '#1e3a8a', fontWeight: 600
               }}>
-                <div className="gov-spinner" /> कैडस्ट्रल नक्शा लोड हो रहा है...
+                <div className="gov-spinner" /> {t('gis.map_loading')}
               </div>
             )}
 
@@ -607,7 +609,7 @@ export default function GISPage() {
             fontSize: '0.75rem', color: '#64748b',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between'
           }}>
-            <span>क्लिक करके किसी भी खसरा पॉलीगॉन की जानकारी देखें</span>
+            <span>{t('gis.map_footer_hint')}</span>
             <span>OpenStreetMap Base Layer</span>
           </div>
 
@@ -633,21 +635,21 @@ export default function GISPage() {
 
                     {selectedParcel.properties.match_status === 'MATCHED' ? (
                       <span className="gov-badge verified">
-                        <CheckCircle2 size={11} /> रिकॉर्ड लिंक (MATCHED)
+                        <CheckCircle2 size={11} /> {t('gis.badge_matched')}
                       </span>
                     ) : selectedParcel.properties.match_status === 'AMBIGUOUS' ? (
                       <span className="gov-badge warning">
-                        <AlertTriangle size={11} /> संदिग्ध (AMBIGUOUS)
+                        <AlertTriangle size={11} /> {t('gis.badge_ambiguous')}
                       </span>
                     ) : (
                       <span className="gov-badge pending">
-                        <Info size={11} /> असंबद्ध (UNMATCHED)
+                        <Info size={11} /> {t('gis.badge_unmatched')}
                       </span>
                     )}
                   </div>
 
                   <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                    पार्सल आईडी: <code>{selectedParcel.properties.parcel_id}</code>
+                    {t('gis.parcel_id_label')} <code>{selectedParcel.properties.parcel_id}</code>
                   </span>
                 </div>
               </div>
@@ -657,7 +659,7 @@ export default function GISPage() {
 
                 {/* Spatial & Geographic Information */}
                 <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0f172a', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  स्थानिक विवरण (Spatial Attributes)
+                  {t('gis.spatial_section')}
                 </h4>
 
                 <div style={{
@@ -665,52 +667,52 @@ export default function GISPage() {
                   background: '#f8fafc', padding: '12px 14px', borderRadius: '8px', marginBottom: '16px'
                 }}>
                   <div>
-                    <span style={{ fontSize: '0.7rem', color: '#64748b', display: 'block', fontWeight: 600 }}>ग्राम</span>
+                    <span style={{ fontSize: '0.7rem', color: '#64748b', display: 'block', fontWeight: 600 }}>{t('gis.field_village')}</span>
                     <strong style={{ fontSize: '0.875rem', color: '#1e293b' }}>{selectedParcel.properties.village}</strong>
                   </div>
                   <div>
-                    <span style={{ fontSize: '0.7rem', color: '#64748b', display: 'block', fontWeight: 600 }}>तहसील / जिला</span>
+                    <span style={{ fontSize: '0.7rem', color: '#64748b', display: 'block', fontWeight: 600 }}>{t('gis.field_tehsil_dist')}</span>
                     <strong style={{ fontSize: '0.875rem', color: '#1e293b' }}>{selectedParcel.properties.tehsil}, {selectedParcel.properties.district}</strong>
                   </div>
                   <div>
-                    <span style={{ fontSize: '0.7rem', color: '#64748b', display: 'block', fontWeight: 600 }}>भूमि उपयोग (Land Use)</span>
+                    <span style={{ fontSize: '0.7rem', color: '#64748b', display: 'block', fontWeight: 600 }}>{t('gis.field_land_use')}</span>
                     <strong style={{ fontSize: '0.875rem', color: '#1e293b' }}>{selectedParcel.properties.land_use || 'कृषि'}</strong>
                   </div>
                   <div>
-                    <span style={{ fontSize: '0.7rem', color: '#64748b', display: 'block', fontWeight: 600 }}>राज्य (State)</span>
+                    <span style={{ fontSize: '0.7rem', color: '#64748b', display: 'block', fontWeight: 600 }}>{t('gis.field_state')}</span>
                     <strong style={{ fontSize: '0.875rem', color: '#1e293b' }}>{selectedParcel.properties.state}</strong>
                   </div>
                 </div>
 
                 {/* Area Breakdown (GIS_guide.md §33) */}
                 <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0f172a', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                  क्षेत्रफल तुलना (Area Breakdown)
+                  {t('gis.area_section')}
                 </h4>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', marginBottom: '18px' }}>
                   <div style={{ padding: '12px', borderRadius: '8px', background: '#f0fdf4', border: '1px solid #bbf7d0' }}>
                     <span style={{ fontSize: '0.7rem', color: '#166534', fontWeight: 700, display: 'block' }}>
-                      आधिकारिक दर्ज रकबा (Recorded Area)
+                      {t('gis.recorded_area_label')}
                     </span>
                     <strong style={{ fontSize: '1.1rem', color: '#15803d', fontFamily: 'var(--font-mono)' }}>
                       {selectedParcel.properties.recorded_area_hectare != null
-                        ? `${selectedParcel.properties.recorded_area_hectare} हे.`
-                        : 'उपलब्ध नहीं'}
+                        ? `${selectedParcel.properties.recorded_area_hectare} ${t('gis.recorded_area_unit')}`
+                        : t('gis.recorded_area_na')}
                     </strong>
                     <span style={{ fontSize: '0.675rem', color: '#166534', display: 'block', marginTop: '2px' }}>
-                      स्रोत: राजस्व अधिकार अभिलेख
+                      {t('gis.recorded_area_source')}
                     </span>
                   </div>
 
                   <div style={{ padding: '12px', borderRadius: '8px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
                     <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 700, display: 'block' }}>
-                      स्थानिक ज्यामिति क्षेत्रफल (Spatial Area)
+                      {t('gis.spatial_area_label')}
                     </span>
                     <strong style={{ fontSize: '0.9rem', color: '#475569' }}>
                       {selectedParcel.properties.spatial_area_hectare || 'Not calculated'}
                     </strong>
                     <span style={{ fontSize: '0.675rem', color: '#94a3b8', display: 'block', marginTop: '2px' }}>
-                      सिंथेटिक ज्यामिति पर संगणित नहीं
+                      {t('gis.spatial_area_note')}
                     </span>
                   </div>
                 </div>
@@ -719,26 +721,26 @@ export default function GISPage() {
                 {selectedParcel.properties.match_status === 'MATCHED' ? (
                   <div style={{ border: '1px solid #bfdbfe', background: '#eff6ff', padding: '14px 16px', borderRadius: '8px', marginBottom: '16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px', color: '#1e40af', fontWeight: 700, fontSize: '0.85rem' }}>
-                      <FileText size={15} /> संबद्ध भू-अभिलेख खाता (Linked Khata)
+                      <FileText size={15} /> {t('gis.linked_khata_section')}
                     </div>
 
                     {selectedParcel.properties.is_duplicate_flag && selectedParcel.properties.duplicate_records_count > 1 && (
                       <div style={{ background: '#fef9c3', border: '1px solid #fde047', borderRadius: '6px', padding: '6px 10px', marginBottom: '10px', fontSize: '0.75rem', color: '#854d0e' }}>
-                        ⚠️ {selectedParcel.properties.duplicate_records_count} डुप्लीकेट DB रिकॉर्ड — सर्वोत्तम मिलान चुना गया। मानवीय समीक्षा अनुशंसित।
+                        ⚠️ {selectedParcel.properties.duplicate_records_count} {t('gis.dup_warning')}
                       </div>
                     )}
 
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', fontSize: '0.8rem', color: '#1e3a8a', marginBottom: '12px' }}>
                       <div>
-                        <span style={{ color: '#60a5fa', display: 'block', fontSize: '0.7rem' }}>खाता संख्या (Khata No.)</span>
+                        <span style={{ color: '#60a5fa', display: 'block', fontSize: '0.7rem' }}>{t('gis.khata_no_label')}</span>
                         <strong>{selectedParcel.properties.khata_number}</strong>
                       </div>
                       <div>
-                        <span style={{ color: '#60a5fa', display: 'block', fontSize: '0.7rem' }}>डेटाबेस रिकॉर्ड आईडी</span>
+                        <span style={{ color: '#60a5fa', display: 'block', fontSize: '0.7rem' }}>{t('gis.db_id_label')}</span>
                         <code>#{selectedParcel.properties.khata_id}</code>
                       </div>
                       <div style={{ gridColumn: 'span 2' }}>
-                        <span style={{ color: '#60a5fa', display: 'block', fontSize: '0.7rem' }}>मुख्य खातेदार</span>
+                        <span style={{ color: '#60a5fa', display: 'block', fontSize: '0.7rem' }}>{t('gis.owner_label')}</span>
                         <strong>{selectedParcel.properties.primary_owner || '—'}</strong>
                       </div>
                     </div>
@@ -750,7 +752,7 @@ export default function GISPage() {
                         onClick={() => navigate(`/records/${selectedParcel.properties.khata_id}`)}
                         style={{ padding: '7px 14px', fontSize: '0.8rem', flex: 1 }}
                       >
-                        <ExternalLink size={13} /> अधिकार अभिलेख खोलें
+                        <ExternalLink size={13} /> {t('gis.btn_open_record')}
                       </button>
 
                       <button
@@ -759,7 +761,7 @@ export default function GISPage() {
                         onClick={() => handleViewEntireHolding(selectedParcel.properties.khata_id)}
                         style={{ padding: '7px 12px', fontSize: '0.8rem', borderColor: '#93c5fd', color: '#1d4ed8' }}
                       >
-                        <Layers size={13} /> संपूर्ण होल्डिंग
+                        <Layers size={13} /> {t('gis.btn_holding')}
                       </button>
                     </div>
                   </div>
@@ -767,31 +769,31 @@ export default function GISPage() {
                 ) : selectedParcel.properties.match_status === 'AMBIGUOUS' ? (
                   <div style={{ background: '#fffbeb', border: '1px solid #fde68a', padding: '12px', borderRadius: '8px', fontSize: '0.8rem', color: '#92400e', marginBottom: '16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, marginBottom: '4px' }}>
-                      <AlertTriangle size={15} /> एकाधिक खातेदार मिलान मिले (Ambiguous Match)
+                      <AlertTriangle size={15} /> {t('gis.ambiguous_title')}
                     </div>
                     <p style={{ margin: 0, fontSize: '0.75rem' }}>
-                      इस खसरा नंबर से {selectedParcel.properties.ambiguous_matches_count || 'कई'} भिन्न रिकॉर्ड जुड़े हैं
+                      {t('gis.ambiguous_desc', { count: selectedParcel.properties.ambiguous_matches_count || '?' })}
                       {selectedParcel.properties.ambiguous_khatas?.length > 0
-                        ? ` (खाता संख्या: ${selectedParcel.properties.ambiguous_khatas.join(', ')})`
+                        ? ` (Khata: ${selectedParcel.properties.ambiguous_khatas.join(', ')})`
                         : ''
-                      }. मानवीय समीक्षा आवश्यक है।
+                      }. {t('gis.ambiguous_review')}
                     </p>
                   </div>
 
                 ) : (
                   <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '12px', borderRadius: '8px', fontSize: '0.8rem', color: '#64748b', marginBottom: '16px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600, marginBottom: '2px' }}>
-                      <Info size={15} /> कोई संबद्ध भूमि अभिलेख नहीं मिला
+                      <Info size={15} /> {t('gis.unmatched_title')}
                     </div>
                     <span style={{ fontSize: '0.725rem' }}>
-                      यह खसरा स्थानिक नक्शे में मौजूद है लेकिन MySQL रजिस्ट्री में इसका कोई खतौनी/पुस्तिका रिकॉर्ड दर्ज नहीं है।
+                      {t('gis.unmatched_desc')}
                     </span>
                   </div>
                 )}
 
                 {/* Provenance note */}
                 <p style={{ fontSize: '0.7rem', color: '#94a3b8', margin: 0 }}>
-                  डेटा स्थिति: <code>DEMO_GEOMETRY</code> • प्रामाणिकता: <code>UNVERIFIED_SYNTHETIC</code>
+                  {t('gis.provenance_status')} <code>DEMO_GEOMETRY</code> • {t('gis.provenance_auth')} <code>UNVERIFIED_SYNTHETIC</code>
                 </p>
 
               </div>
@@ -801,10 +803,10 @@ export default function GISPage() {
             <div className="gov-card" style={{ padding: '40px 24px', textAlign: 'center', color: '#64748b' }}>
               <Layers size={42} style={{ margin: '0 auto 12px', opacity: 0.35, color: '#1e3a8a' }} />
               <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#1e293b', marginBottom: '6px' }}>
-                कोई खसरा चयनित नहीं है
+                {t('gis.parcel_none_title')}
               </h3>
               <p style={{ fontSize: '0.825rem', color: '#64748b', lineHeight: 1.5, margin: 0 }}>
-                मानचित्र पर किसी भी खसरा पॉलीगॉन पर क्लिक करें अथवा ऊपर दिए सर्च बार में खसरा संख्या (जैसे <strong>101</strong>, <strong>96/1</strong>, <strong>100</strong>) खोजें।
+                {t('gis.parcel_none_desc')}
               </p>
             </div>
           )}
@@ -812,10 +814,10 @@ export default function GISPage() {
           {/* About GIS Module Card */}
           <div className="gov-card" style={{ padding: '16px 20px', background: '#f8fafc' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', color: '#1e3a8a', fontWeight: 700, fontSize: '0.85rem' }}>
-              <Shield size={16} /> DILRMP भू-नक्शा एकीकरण सिद्धांत
+              <Shield size={16} /> {t('gis.dilrmp_title')}
             </div>
             <p style={{ fontSize: '0.75rem', color: '#475569', lineHeight: 1.6, margin: 0 }}>
-              भू-अभिलेख (टेक्स्ट) और भू-नक्शा (ज्यामिति) अलग-अलग लेयर्स हैं। IDVRS का GIS इंजन दोनों को 5-बिंदु कुंजी से जोड़ता है। भविष्य में इसे राज्य के भू-नक्शा (Bhu-Naksha) अथवा PostGIS सर्वर के साथ सीधे प्लग किया जा सकता है।
+              {t('gis.dilrmp_desc')}
             </p>
           </div>
 

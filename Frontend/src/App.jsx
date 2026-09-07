@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom';
 import axios from 'axios';
+import { useTranslation } from 'react-i18next';
+import i18n from './i18n/index.js';
 import {
   FileText, UploadCloud, BarChart3, Database,
   CheckCircle2, AlertCircle, Shield, ExternalLink, HelpCircle, Map
@@ -13,8 +15,71 @@ import RecordsPage from './pages/RecordsPage';
 import RecordDetailPage from './pages/RecordDetailPage';
 import GISPage from './pages/GISPage';
 
+/* ── Language Toggle ─────────────────────────────────────────
+   Small pill in the header. Saves to localStorage so the
+   preference survives page reload and navigation.            */
+function LanguageToggle() {
+  const [lang, setLang] = useState(i18n.language || 'hi');
+
+  const switchTo = (l) => {
+    i18n.changeLanguage(l);
+    localStorage.setItem('idvrs_lang', l);
+    setLang(l);
+  };
+
+  const pillBase = {
+    border: 'none',
+    borderRadius: '5px',
+    cursor: 'pointer',
+    fontSize: '0.78rem',
+    fontWeight: 700,
+    padding: '4px 10px',
+    lineHeight: 1.3,
+    transition: 'all 0.15s ease',
+  };
+
+  return (
+    <div
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        border: '1px solid rgba(255,255,255,0.15)',
+        borderRadius: '7px',
+        overflow: 'hidden',
+        background: 'rgba(255,255,255,0.06)',
+        marginLeft: '12px',
+      }}
+    >
+      <button
+        onClick={() => switchTo('hi')}
+        title="हिन्दी में देखें"
+        style={{
+          ...pillBase,
+          background: lang === 'hi' ? '#1e3a8a' : 'transparent',
+          color: lang === 'hi' ? '#ffffff' : '#94a3b8',
+        }}
+      >
+        हिन्दी
+      </button>
+      <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: '0.8rem' }}>|</span>
+      <button
+        onClick={() => switchTo('en')}
+        title="Switch to English"
+        style={{
+          ...pillBase,
+          background: lang === 'en' ? '#1e3a8a' : 'transparent',
+          color: lang === 'en' ? '#ffffff' : '#94a3b8',
+        }}
+      >
+        English
+      </button>
+    </div>
+  );
+}
+
 /* ── National GovTech Layout Component ──────────────────────── */
 function GovLayout({ children }) {
+  const { t } = useTranslation();
   const [systemStatus, setSystemStatus] = useState({
     online: true,
     db: true,
@@ -74,7 +139,7 @@ function GovLayout({ children }) {
             भारत सरकार | Government of India
           </span>
           <span style={{ color: '#475569' }}>•</span>
-          <span>ग्रामीण विकास मंत्रालय (DoLR)</span>
+          <span>{t('nav.ministry')}</span>
           <span style={{ color: '#475569' }}>•</span>
           <span style={{
             background: 'rgba(255, 153, 51, 0.15)',
@@ -105,7 +170,7 @@ function GovLayout({ children }) {
                 background: '#10b981',
                 boxShadow: '0 0 8px rgba(16, 185, 129, 0.7)'
               }} className="pulse-active" />
-              AI Engine & MySQL Connected ({systemStatus.latency}ms)
+              {t('status.online')} ({systemStatus.latency}ms)
             </span>
           ) : (
             <span style={{
@@ -115,7 +180,7 @@ function GovLayout({ children }) {
               color: '#f87171',
               fontSize: '0.725rem'
             }}>
-              <AlertCircle size={12} /> Server Reconnecting
+              <AlertCircle size={12} /> {t('status.reconnecting')}
             </span>
           )}
         </div>
@@ -174,12 +239,12 @@ function GovLayout({ children }) {
                 </span>
               </div>
               <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: 0, fontWeight: 500 }}>
-                राष्ट्रीय भू-अभिलेख डिजिटलीकरण एवं सत्यापन प्रणाली
+                {t('nav.subtitle')}
               </p>
             </div>
           </NavLink>
 
-          {/* Primary Navigation Links */}
+          {/* Primary Navigation Links + Language Toggle */}
           <nav style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <NavLink
               to="/"
@@ -187,7 +252,7 @@ function GovLayout({ children }) {
                 isActive ? 'gov-nav-active' : 'gov-nav-idle'
               }
             >
-              <BarChart3 size={15} /> डैशबोर्ड (Dashboard)
+              <BarChart3 size={15} /> {t('nav.dashboard')}
             </NavLink>
 
             <NavLink
@@ -196,7 +261,7 @@ function GovLayout({ children }) {
                 isActive ? 'gov-nav-active' : 'gov-nav-idle'
               }
             >
-              <UploadCloud size={15} /> नया दस्तावेज़ डिजिटाइज़ (Digitize)
+              <UploadCloud size={15} /> {t('nav.digitize')}
             </NavLink>
 
             <NavLink
@@ -205,7 +270,7 @@ function GovLayout({ children }) {
                 isActive ? 'gov-nav-active' : 'gov-nav-idle'
               }
             >
-              <Database size={15} /> भू-अभिलेख पंजिका (Land Registry)
+              <Database size={15} /> {t('nav.registry')}
             </NavLink>
 
             <NavLink
@@ -214,8 +279,11 @@ function GovLayout({ children }) {
                 isActive ? 'gov-nav-active' : 'gov-nav-idle'
               }
             >
-              <Map size={15} /> भू-नक्शा (Cadastral Map)
+              <Map size={15} /> {t('nav.cadastral')}
             </NavLink>
+
+            {/* Language Toggle Pill */}
+            <LanguageToggle />
           </nav>
         </div>
       </header>

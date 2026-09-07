@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Khata, KhataOwner, KhataParcel, Document
+from app.pipeline.validator import validate_record_payload
 
 logger = logging.getLogger("app.api.records")
 
@@ -108,11 +109,26 @@ def _unwrap_float(val: Any) -> Optional[float]:
 def save_record(payload: RecordIn, db: Session = Depends(get_db)):
     """
     Saves the final (user-reviewed and possibly corrected) land record to MySQL.
+    Executes authoritative server-side re-validation before persistence.
     Creates one Khata, N KhataOwner rows, and M KhataParcel rows.
     Sets is_duplicate_flag if validation indicates a duplicate.
     """
+    # 1. Authoritative server-side re-validation (Constraint 8 & 9)
+    val_result = validate_record_payload(payload.dict(), db)
+    if not val_result["passed"]:
+        logger.warning(f"Server-side re-validation rejected save payload: {val_result['errors']}")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "message": "डेटा सत्यापन विफल रहा / Server-side record validation failed",
+                "errors": val_result["errors"],
+                "warnings": val_result["warnings"],
+            }
+        )
+
     khata_d = payload.khata
-    is_dup  = payload.validation.is_duplicate if payload.validation else False
+    # Authoritative duplicate flag computed on server
+    is_dup = val_result["is_duplicate"]
 
     # Build Khata row
     khata_row = Khata(

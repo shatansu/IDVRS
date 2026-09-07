@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 import {
   BarChart, Bar, PieChart, Pie, Cell, Tooltip,
@@ -59,21 +60,23 @@ function MetricCard({ title, hindiTitle, value, subtext, icon: Icon, accentColor
 
 /* ── Custom Tooltips ───────────────────────────────────────── */
 function BarTooltip({ active, payload }) {
+  const { t } = useTranslation();
   if (!active || !payload?.length) return null;
   return (
     <div style={{ background: '#0f172a', color: '#ffffff', borderRadius: '8px', padding: '8px 12px', fontSize: '0.8rem', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
       <p style={{ fontWeight: 700, color: '#38bdf8' }}>{payload[0].payload.district}</p>
-      <p style={{ marginTop: '2px' }}>कुल खाते: <strong>{payload[0].value}</strong></p>
+      <p style={{ marginTop: '2px' }}>{t('dashboard.tooltip_total_khata')} <strong>{payload[0].value}</strong></p>
     </div>
   );
 }
 
 function PieTooltip({ active, payload }) {
+  const { t } = useTranslation();
   if (!active || !payload?.length) return null;
   return (
     <div style={{ background: '#0f172a', color: '#ffffff', borderRadius: '8px', padding: '8px 12px', fontSize: '0.8rem', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
       <p style={{ fontWeight: 700, color: payload[0].payload.fill }}>{payload[0].name}</p>
-      <p style={{ marginTop: '2px' }}>संख्या: <strong>{payload[0].value} खाते</strong></p>
+      <p style={{ marginTop: '2px' }}>{t('dashboard.tooltip_count')} <strong>{payload[0].value} {t('dashboard.tooltip_khata_unit')}</strong></p>
     </div>
   );
 }
@@ -81,6 +84,7 @@ function PieTooltip({ active, payload }) {
 /* ── Executive Dashboard Page ──────────────────────────────── */
 export default function DashboardPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -92,7 +96,7 @@ export default function DashboardPage() {
         setLoading(false);
       })
       .catch(err => {
-        setError(err.response?.data?.detail || err.message || 'डैशबोर्ड डेटा लोड करने में असमर्थ।');
+        setError(err.response?.data?.detail || err.message || t('dashboard.error_load'));
         setLoading(false);
       });
   }, []);
@@ -102,7 +106,7 @@ export default function DashboardPage() {
       <div style={{ minHeight: '80vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '14px' }}>
         <div className="gov-spinner" />
         <p style={{ color: '#64748b', fontSize: '0.9rem', fontWeight: 500 }}>
-          डैशबोर्ड एवं भू-अभिलेख आंकड़े लोड हो रहे हैं...
+          {t('dashboard.loading')}
         </p>
       </div>
     );
@@ -114,7 +118,7 @@ export default function DashboardPage() {
         <div className="gov-alert error">
           <AlertTriangle size={20} style={{ flexShrink: 0 }} />
           <div>
-            <strong>कनेक्शन त्रुटि:</strong> {error}
+            <strong>{t('dashboard.error_title')}</strong> {error}
           </div>
         </div>
       </div>
@@ -146,17 +150,17 @@ export default function DashboardPage() {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
             <span className="gov-badge info">
-              <ShieldCheck size={12} /> DILRMP अनुपालन
+              <ShieldCheck size={12} /> {t('dashboard.badge_dilrmp')}
             </span>
             <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-              • मध्य प्रदेश भूलेख (Simariya / Panna Node Active)
+              {t('dashboard.node_active')}
             </span>
           </div>
           <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em', margin: 0 }}>
-            राष्ट्रीय भू-अभिलेख डिजिटलीकरण डैशबोर्ड
+            {t('dashboard.title')}
           </h1>
           <p style={{ color: '#475569', fontSize: '0.9rem', marginTop: '4px' }}>
-            AI-संचालित OCR, ऑटोमेटेड फील्ड वर्गीकरण, सह-खातेदार अंश सत्यापन एवं विसंगति पहचान निगरानी
+            {t('dashboard.subtitle')}
           </p>
         </div>
 
@@ -165,13 +169,13 @@ export default function DashboardPage() {
             className="btn-gov-secondary"
             onClick={() => navigate('/records')}
           >
-            <Database size={15} /> सभी रिकॉर्ड देखें ({stats.total_khatas})
+            <Database size={15} /> {t('dashboard.btn_view_records')} ({stats.total_khatas})
           </button>
           <button
             className="btn-gov-primary"
             onClick={() => navigate('/upload')}
           >
-            <UploadCloud size={16} /> + नया दस्तावेज़ डिजिटाइज़ करें
+            <UploadCloud size={16} /> {t('dashboard.btn_digitize')}
           </button>
         </div>
       </div>
@@ -179,60 +183,60 @@ export default function DashboardPage() {
       {/* 2. Primary KPI Grid (6 Metric Cards) */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '16px', marginBottom: '28px' }}>
         <MetricCard
-          title="Documents Processed"
-          hindiTitle="कुल प्रसंस्कृत दस्तावेज़"
+          title={t('dashboard.metric_docs_title')}
+          hindiTitle={t('dashboard.metric_docs_hindi')}
           value={stats.total_documents}
-          subtext="डिजिटल PDF व स्कैन फाइलें"
+          subtext={t('dashboard.metric_docs_sub')}
           icon={FileText}
           accentColor="#2563eb"
           badge={{ text: 'Active Ingest', type: 'info' }}
         />
 
         <MetricCard
-          title="Saved Khata Accounts"
-          hindiTitle="पंजीकृत खाते (Khata Master)"
+          title={t('dashboard.metric_khatas_title')}
+          hindiTitle={t('dashboard.metric_khatas_hindi')}
           value={stats.total_khatas}
-          subtext="डेटाबेस में स्थायी संचित"
+          subtext={t('dashboard.metric_khatas_sub')}
           icon={Database}
           accentColor="#1e3a8a"
           badge={{ text: 'MySQL Verified', type: 'verified' }}
         />
 
         <MetricCard
-          title="Average AI Confidence"
-          hindiTitle="औसत निष्कर्षण शुद्धता"
+          title={t('dashboard.metric_confidence_title')}
+          hindiTitle={t('dashboard.metric_confidence_hindi')}
           value={stats.average_confidence ? `${stats.average_confidence}%` : '—'}
-          subtext="खाता व खसरा पैटर्न मिलान"
+          subtext={t('dashboard.metric_confidence_sub')}
           icon={TrendingUp}
           accentColor="#059669"
           badge={{ text: 'High Accuracy', type: 'verified' }}
         />
 
         <MetricCard
-          title="Pending Verification"
-          hindiTitle="सत्यापन हेतु प्रतीक्षारत"
+          title={t('dashboard.metric_pending_title')}
+          hindiTitle={t('dashboard.metric_pending_hindi')}
           value={stats.pending_review_count}
-          subtext="मानव सत्यापन (HITL) कतार"
+          subtext={t('dashboard.metric_pending_sub')}
           icon={Clock}
           accentColor="#d97706"
           badge={{ text: 'Review Queue', type: 'pending' }}
         />
 
         <MetricCard
-          title="Duplicate Alerts"
-          hindiTitle="पहचाने गए संभावित दोहराव"
+          title={t('dashboard.metric_dup_title')}
+          hindiTitle={t('dashboard.metric_dup_hindi')}
           value={stats.duplicate_count}
-          subtext="CLRM / खसरा क्रॉस-मैच"
+          subtext={t('dashboard.metric_dup_sub')}
           icon={Copy}
           accentColor="#dc2626"
           badge={{ text: 'Flagged', type: 'duplicate' }}
         />
 
         <MetricCard
-          title="Verified Records"
-          hindiTitle="पूर्णतः सत्यापित भू-अभिलेख"
+          title={t('dashboard.metric_verified_title')}
+          hindiTitle={t('dashboard.metric_verified_hindi')}
           value={stats.verified_count}
-          subtext="अधिकारिक रूप से अनुमोदित"
+          subtext={t('dashboard.metric_verified_sub')}
           icon={CheckCircle2}
           accentColor="#059669"
           badge={{ text: 'Ready for RoR', type: 'verified' }}
@@ -247,21 +251,21 @@ export default function DashboardPage() {
           <div className="gov-card-header">
             <div>
               <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#0f172a' }}>
-                जिलों के अनुसार डिजिटाइज्ड भू-अभिलेख
+                {t('dashboard.chart_district_title')}
               </h3>
               <p style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                District-wise volume of digitized khata accounts
+                {t('dashboard.chart_district_sub')}
               </p>
             </div>
             <span className="gov-badge info">
-              {stats.records_by_district.length} जिले सक्रिय
+              {stats.records_by_district.length} {t('dashboard.chart_district_active')}
             </span>
           </div>
 
           <div style={{ padding: '24px 20px 16px' }}>
             {stats.records_by_district.length === 0 ? (
               <div style={{ height: '260px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.9rem' }}>
-                कोई जिला डेटा उपलब्ध नहीं है।
+                {t('dashboard.chart_district_empty')}
               </div>
             ) : (
               <ResponsiveContainer width="100%" height={260}>
@@ -281,21 +285,21 @@ export default function DashboardPage() {
           <div className="gov-card-header">
             <div>
               <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#0f172a' }}>
-                सत्यापन एवं ऑडिट स्थिति
+                {t('dashboard.chart_status_title')}
               </h3>
               <p style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                Verified vs. Pending review records
+                {t('dashboard.chart_status_sub')}
               </p>
             </div>
             <span className="gov-badge verified">
-              ऑडिट अनुपात
+              {t('dashboard.chart_status_badge')}
             </span>
           </div>
 
           <div style={{ padding: '20px' }}>
             {stats.total_khatas === 0 ? (
               <div style={{ height: '220px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.9rem' }}>
-                कोई रिकॉर्ड उपलब्ध नहीं है।
+                {t('dashboard.chart_status_empty')}
               </div>
             ) : (
               <>
@@ -356,14 +360,14 @@ export default function DashboardPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
             <Sparkles size={18} color="#38bdf8" />
             <span style={{ fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#38bdf8' }}>
-              फास्ट-ट्रैक डिजिटलीकरण वर्कफ़्लो
+              {t('dashboard.workflow_tag')}
             </span>
           </div>
           <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#ffffff', margin: '0 0 4px' }}>
-            प्रमाणित प्रति अथवा स्कैन किया हुआ रजिस्टर अपलोड करें
+            {t('dashboard.workflow_title')}
           </h3>
           <p style={{ fontSize: '0.85rem', color: '#cbd5e1', maxWidth: '700px', margin: 0 }}>
-            सिस्टम स्वतः दस्तावेज़ का प्रकार (Form 4 / Form 7) पहचान कर, सह-खातेदारों के अंश और खसरों के क्षेत्रफल को त्रुटिरहित स्ट्रक्चर्ड डेटा में परिवर्तित कर देगा।
+            {t('dashboard.workflow_desc')}
           </p>
         </div>
 
@@ -387,7 +391,7 @@ export default function DashboardPage() {
           onMouseOver={e => e.currentTarget.style.transform = 'translateY(-1px)'}
           onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
         >
-          <UploadCloud size={18} color="#1e3a8a" /> दस्तावेज़ अपलोड करें <ArrowRight size={16} />
+          <UploadCloud size={18} color="#1e3a8a" /> {t('dashboard.workflow_btn')} <ArrowRight size={16} />
         </button>
       </div>
 

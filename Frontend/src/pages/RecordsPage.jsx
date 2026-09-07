@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 import {
   Search, FileText, AlertTriangle, CheckCircle2,
@@ -9,31 +10,32 @@ import {
 
 /* ── Status Badge ──────────────────────────────────────────── */
 function StatusBadge({ status, isDuplicate }) {
+  const { t } = useTranslation();
   if (isDuplicate) {
     return (
       <span className="gov-badge duplicate">
-        <Copy size={11} /> संभावित दोहराव (Duplicate)
+        <Copy size={11} /> {t('status.duplicate')}
       </span>
     );
   }
   if (status === 'verified') {
     return (
       <span className="gov-badge verified">
-        <CheckCircle2 size={11} /> सत्यापित (Verified)
+        <CheckCircle2 size={11} /> {t('status.verified')}
       </span>
     );
   }
   return (
     <span className="gov-badge pending">
-      <Clock size={11} /> समीक्षाधीन (Pending)
+      <Clock size={11} /> {t('status.pending')}
     </span>
   );
 }
 
 /* ── CSV Export Function ───────────────────────────────────── */
-function exportRecordsToCSV(records) {
+function exportRecordsToCSV(records, noRecordsMsg) {
   if (!records || records.length === 0) {
-    alert('डाउनलोड करने हेतु कोई रिकॉर्ड उपलब्ध नहीं है।');
+    alert(noRecordsMsg);
     return;
   }
 
@@ -75,6 +77,7 @@ function exportRecordsToCSV(records) {
 /* ── Main RecordsPage ──────────────────────────────────────── */
 export default function RecordsPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const [records, setRecords] = useState([]);
   const [total, setTotal] = useState(0);
@@ -86,7 +89,7 @@ export default function RecordsPage() {
   const [searchDistrict, setSearchDistrict] = useState('');
   const [activeVillage, setActiveVillage] = useState('');
   const [activeDistrict, setActiveDistrict] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all'); // all, verified, pending, duplicate
+  const [statusFilter, setStatusFilter] = useState('all');
   const [updatingId, setUpdatingId] = useState(null);
 
   const fetchRecords = useCallback(async (v = '', d = '') => {
@@ -100,11 +103,11 @@ export default function RecordsPage() {
       setRecords(res.data.records || []);
       setTotal(res.data.total || 0);
     } catch (err) {
-      setError(err.response?.data?.detail || err.message || 'भू-अभिलेख सूची लोड करने में असमर्थ।');
+      setError(err.response?.data?.detail || err.message || t('records.error_load'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     fetchRecords();
@@ -135,14 +138,16 @@ export default function RecordsPage() {
         prev.map(r => r.id === rec.id ? { ...r, review_status: newStatus } : r)
       );
     } catch {
-      alert('स्थिति अद्यतन करने में विफलता हुई।');
+      alert(t('records.status_update_fail'));
     } finally {
       setUpdatingId(null);
     }
   };
 
   const handleDeleteRecord = async (recordId, khataNumber) => {
-    if (!window.confirm(`क्या आप वाकई खाता संख्या "${khataNumber || recordId}" (रिकॉर्ड #${recordId}) को हटाना चाहते हैं? यह प्रक्रिया पूर्ववत नहीं की जा सकती।\n\nAre you sure you want to delete Record #${recordId}? This action cannot be undone.`)) {
+    if (!window.confirm(
+      t('records.confirm_delete', { khataNumber: khataNumber || recordId, id: recordId })
+    )) {
       return;
     }
     try {
@@ -150,23 +155,21 @@ export default function RecordsPage() {
       setRecords(prev => prev.filter(r => r.id !== recordId));
       setTotal(prev => Math.max(0, prev - 1));
     } catch (err) {
-      alert(err.response?.data?.detail || 'रिकॉर्ड हटाने में विफलता हुई।');
+      alert(err.response?.data?.detail || t('records.delete_fail'));
     }
   };
 
   const handleResetAll = async () => {
-    const confirmInput = window.prompt(
-      'चेतावनी: यह सभी सहेजे गए भूमि रिकॉर्ड और अपलोड किए गए दस्तावेज़ों को स्थायी रूप से हटा देगा।\nजारी रखने के लिए नीचे "CONFIRM" लिखें:\n\nWARNING: This will permanently delete ALL saved land records and documents. Type "CONFIRM" to proceed:'
-    );
+    const confirmInput = window.prompt(t('records.reset_prompt'));
     if (confirmInput !== 'CONFIRM') return;
 
     try {
       await axios.delete('/api/records?confirm=true');
       setRecords([]);
       setTotal(0);
-      alert('सभी रिकॉर्ड सफलतापूर्वक साफ़ कर दिए गए हैं। / All records have been purged.');
+      alert(t('records.reset_success'));
     } catch (err) {
-      alert(err.response?.data?.detail || 'डेटा साफ़ करने में विफलता हुई।');
+      alert(err.response?.data?.detail || t('records.reset_fail'));
     }
   };
 
@@ -200,17 +203,17 @@ export default function RecordsPage() {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
             <span className="gov-badge info">
-              <ShieldCheck size={12} /> आधिकारिक लैंड रिकॉर्ड रजिस्ट्री
+              <ShieldCheck size={12} /> {t('records.badge_registry')}
             </span>
             <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-              • कुल {total} पंजीकृत खाते (MySQL)
+              • {t('records.total_accounts', { count: total })}
             </span>
           </div>
           <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em', margin: 0 }}>
-            राष्ट्रीय भू-अभिलेख पंजिका (Land Records Registry)
+            {t('records.page_title')}
           </h1>
           <p style={{ color: '#475569', fontSize: '0.9rem', marginTop: '4px' }}>
-            डिजिटाइज्ड खातों की आधिकारिक सूची, सह-खातेदारों का विवरण एवं सत्यापित खसरों का केंद्रीय भंडार
+            {t('records.page_subtitle')}
           </p>
         </div>
 
@@ -218,20 +221,19 @@ export default function RecordsPage() {
           <button
             type="button"
             className="btn-gov-secondary"
-            onClick={() => exportRecordsToCSV(records)}
-            title="CSV प्रारूप में डाउनलोड करें"
+            onClick={() => exportRecordsToCSV(records, t('records.no_download'))}
+            title={t('records.btn_export')}
           >
-            <Download size={15} /> CSV निर्यात करें (Export)
+            <Download size={15} /> {t('records.btn_export')}
           </button>
           {records.length > 0 && (
             <button
               type="button"
               className="btn-gov-secondary"
               onClick={handleResetAll}
-              title="परीक्षण हेतु सभी रिकॉर्ड हटाएं / Purge all for clean demo"
               style={{ color: '#dc2626', borderColor: '#fecaca' }}
             >
-              <Trash2 size={15} /> डेटा रीसेट (Reset)
+              <Trash2 size={15} /> {t('records.btn_reset_data')}
             </button>
           )}
           <button
@@ -239,7 +241,7 @@ export default function RecordsPage() {
             className="btn-gov-primary"
             onClick={() => navigate('/upload')}
           >
-            + नया दस्तावेज़ जोड़ें
+            {t('records.btn_add')}
           </button>
         </div>
       </div>
@@ -251,10 +253,10 @@ export default function RecordsPage() {
           {/* Status Tabs */}
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
             {[
-              { id: 'all', label: 'सभी अभिलेख (All)', count: records.length },
-              { id: 'verified', label: 'सत्यापित (Verified)', count: records.filter(r => r.review_status === 'verified').length },
-              { id: 'pending', label: 'समीक्षाधीन (Pending)', count: records.filter(r => r.review_status === 'pending_review').length },
-              { id: 'duplicate', label: 'दोहराव अलर्ट (Duplicate)', count: records.filter(r => r.is_duplicate_flag).length },
+              { id: 'all', label: t('records.tab_all'), count: records.length },
+              { id: 'verified', label: t('records.tab_verified'), count: records.filter(r => r.review_status === 'verified').length },
+              { id: 'pending', label: t('records.tab_pending'), count: records.filter(r => r.review_status === 'pending_review').length },
+              { id: 'duplicate', label: t('records.tab_duplicate'), count: records.filter(r => r.is_duplicate_flag).length },
             ].map(tab => (
               <button
                 key={tab.id}
@@ -296,7 +298,7 @@ export default function RecordsPage() {
             <div style={{ minWidth: '160px', flex: '1 1 140px' }}>
               <input
                 className="gov-input"
-                placeholder="ग्राम से खोजें (Village)..."
+                placeholder={t('records.search_village_placeholder')}
                 value={searchVillage}
                 onChange={e => setSearchVillage(e.target.value)}
                 style={{ padding: '7px 12px', fontSize: '0.85rem' }}
@@ -306,7 +308,7 @@ export default function RecordsPage() {
             <div style={{ minWidth: '160px', flex: '1 1 140px' }}>
               <input
                 className="gov-input"
-                placeholder="जिले से खोजें (District)..."
+                placeholder={t('records.search_district_placeholder')}
                 value={searchDistrict}
                 onChange={e => setSearchDistrict(e.target.value)}
                 style={{ padding: '7px 12px', fontSize: '0.85rem' }}
@@ -314,16 +316,16 @@ export default function RecordsPage() {
             </div>
 
             <button type="submit" className="btn-gov-primary" style={{ padding: '7px 14px', fontSize: '0.85rem' }}>
-              <Search size={14} /> खोजें
+              <Search size={14} /> {t('records.btn_search')}
             </button>
 
             {isFiltered && (
               <button type="button" className="btn-gov-secondary" onClick={clearFilters} style={{ padding: '7px 12px', fontSize: '0.85rem' }}>
-                <X size={14} /> रीसेट
+                <X size={14} /> {t('records.btn_reset')}
               </button>
             )}
 
-            <button type="button" className="btn-gov-secondary" onClick={() => fetchRecords(activeVillage, activeDistrict)} style={{ padding: '7px 10px' }} title="ताज़ा करें">
+            <button type="button" className="btn-gov-secondary" onClick={() => fetchRecords(activeVillage, activeDistrict)} style={{ padding: '7px 10px' }}>
               <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             </button>
           </form>
@@ -344,19 +346,19 @@ export default function RecordsPage() {
           <table className="gov-table">
             <thead>
               <tr>
-                <th style={{ width: '50px' }}>ID</th>
-                <th style={{ width: '110px' }}>खाता सं. (Khata)</th>
-                <th>CLRM क्रमांक (Unique ID)</th>
-                <th>ग्राम (Village)</th>
-                <th>तहसील / जिला</th>
-                <th>मुख्य खातेदार (Primary Owner)</th>
+                <th style={{ width: '50px' }}>{t('records.col_id')}</th>
+                <th style={{ width: '110px' }}>{t('records.col_khata')}</th>
+                <th>{t('records.col_clrm')}</th>
+                <th>{t('records.col_village')}</th>
+                <th>{t('records.col_tehsil_district')}</th>
+                <th>{t('records.col_owner')}</th>
                 <th style={{ textAlign: 'center', width: '85px' }}>
-                  <Users size={13} style={{ verticalAlign: 'middle', marginRight: '4px' }} />खातेदार
+                  <Users size={13} style={{ verticalAlign: 'middle', marginRight: '4px' }} />{t('records.col_owners_count')}
                 </th>
                 <th style={{ textAlign: 'center', width: '85px' }}>
-                  <Layers size={13} style={{ verticalAlign: 'middle', marginRight: '4px' }} />खसरे
+                  <Layers size={13} style={{ verticalAlign: 'middle', marginRight: '4px' }} />{t('records.col_parcels_count')}
                 </th>
-                <th style={{ width: '160px' }}>स्थिति (Status)</th>
+                <th style={{ width: '160px' }}>{t('records.col_status')}</th>
                 <th style={{ width: '40px' }}></th>
               </tr>
             </thead>
@@ -365,7 +367,7 @@ export default function RecordsPage() {
                 <tr>
                   <td colSpan={10} style={{ padding: '60px 20px', textAlign: 'center' }}>
                     <div className="gov-spinner" style={{ margin: '0 auto 12px' }} />
-                    <p style={{ color: '#64748b', fontSize: '0.9rem' }}>डेटाबेस से भू-अभिलेख लोड हो रहे हैं...</p>
+                    <p style={{ color: '#64748b', fontSize: '0.9rem' }}>{t('records.loading')}</p>
                   </td>
                 </tr>
               ) : filteredRecords.length === 0 ? (
@@ -373,10 +375,10 @@ export default function RecordsPage() {
                   <td colSpan={10} style={{ padding: '60px 20px', textAlign: 'center', color: '#64748b' }}>
                     <FileText size={40} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
                     <p style={{ fontWeight: 700, fontSize: '1rem', color: '#1e293b' }}>
-                      {isFiltered ? 'खोज से मेल खाता कोई भू-अभिलेख नहीं मिला' : 'डेटाबेस में कोई रिकॉर्ड दर्ज नहीं है'}
+                      {isFiltered ? t('records.empty_filtered_title') : t('records.empty_title')}
                     </p>
                     <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: '4px' }}>
-                      {isFiltered ? 'कृपया अन्य ग्राम अथवा जिला नाम डालकर पुनः प्रयास करें।' : 'शुरू करने के लिए ऊपर दिए बटन से नया दस्तावेज़ अपलोड करें।'}
+                      {isFiltered ? t('records.empty_filtered_sub') : t('records.empty_sub')}
                     </p>
                   </td>
                 </tr>
@@ -445,7 +447,7 @@ export default function RecordsPage() {
                           type="button"
                           onClick={() => toggleVerify(rec)}
                           disabled={updatingId === rec.id}
-                          title={rec.review_status === 'verified' ? 'समीक्षाधीन में बदलें' : 'सत्यापित करें'}
+                          title={rec.review_status === 'verified' ? t('records.status_toggle_revert') : t('records.status_toggle_verify')}
                           style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                         >
                           {updatingId === rec.id ? (
@@ -457,7 +459,7 @@ export default function RecordsPage() {
                         <button
                           type="button"
                           onClick={() => handleDeleteRecord(rec.id, rec.khata_number)}
-                          title="यह रिकॉर्ड हटाएं (Delete Record)"
+                          title={t('records.col_id')}
                           style={{
                             background: 'none',
                             border: 'none',
@@ -498,10 +500,10 @@ export default function RecordsPage() {
             color: '#64748b'
           }}>
             <span>
-              प्रदर्शित: <strong>{filteredRecords.length}</strong> / <strong>{total}</strong> कुल खाते
+              {t('records.footer_showing')} <strong>{filteredRecords.length}</strong> / <strong>{total}</strong> {t('records.footer_total')}
             </span>
             <span>
-              क्लिक करके संपूर्ण अधिकार अभिलेख (Record of Rights) देखें
+              {t('records.footer_hint')}
             </span>
           </div>
         )}

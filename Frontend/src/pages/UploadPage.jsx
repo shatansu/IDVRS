@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 import {
   UploadCloud, FileText, X, CheckCircle2,
@@ -12,6 +13,7 @@ const ACCEPTED_MIME = ['application/pdf', 'image/jpeg', 'image/png'];
 
 export default function UploadPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const fileInput = useRef(null);
 
   const [file, setFile] = useState(null);
@@ -22,12 +24,12 @@ export default function UploadPage() {
 
   /* ── File validation ───────────────────────────────────────── */
   const validateFile = (f) => {
-    if (!f) return 'कृपया कोई फ़ाइल चुनें।';
+    if (!f) return t('upload.validate_no_file');
     const ext = '.' + f.name.split('.').pop().toLowerCase();
     if (!ACCEPTED_TYPES.includes(ext) && !ACCEPTED_MIME.includes(f.type)) {
-      return 'असमर्थित फ़ाइल प्रारूप। कृपया PDF, JPG अथवा PNG फ़ाइल अपलोड करें।';
+      return t('upload.validate_type');
     }
-    if (f.size > 50 * 1024 * 1024) return 'फ़ाइल का आकार 50 MB से अधिक नहीं हो सकता।';
+    if (f.size > 50 * 1024 * 1024) return t('upload.validate_size');
     return null;
   };
 
@@ -59,23 +61,22 @@ export default function UploadPage() {
   };
 
   /* ── 1-Click Sample Demo Loader ────────────────────────────── */
-  const loadSamplePreset = async (filename, displayName) => {
+  const loadSamplePreset = async (filename, displayName, mimeType = 'application/pdf') => {
     try {
       setError(null);
-      setCurrentStep(`सैंपल दस्तावेज़ लोड हो रहा है: ${displayName}...`);
+      setCurrentStep(`${t('upload.sample_loading')} ${displayName}...`);
       setUploading(true);
 
       const response = await fetch(`/samples/${filename}`);
-      if (!response.ok) throw new Error('सैंपल फ़ाइल लोड करने में विफल।');
+      if (!response.ok) throw new Error(t('upload.sample_fail'));
 
       const blob = await response.blob();
-      const sampleFile = new File([blob], filename, { type: 'application/pdf' });
+      const sampleFile = new File([blob], filename, { type: mimeType });
       setFile(sampleFile);
 
-      // Trigger upload directly with this file
       await executeUpload(sampleFile);
     } catch (err) {
-      setError(err.message || 'सैंपल दस्तावेज़ लोड करने में त्रुटि हुई।');
+      setError(err.message || t('upload.sample_error'));
       setUploading(false);
     }
   };
@@ -89,14 +90,13 @@ export default function UploadPage() {
     setError(null);
 
     try {
-      setCurrentStep('1/4: दस्तावेज़ सुरक्षित अपलोड किया जा रहा है...');
+      setCurrentStep(t('upload.step_upload'));
       const formData = new FormData();
       formData.append('file', uploadTarget);
 
-      // Step simulation for UI visual clarity
-      setTimeout(() => setCurrentStep('2/4: PyMuPDF / OpenCV प्री-प्रोसेसिंग एवं मात्रा संरेखण...'), 700);
-      setTimeout(() => setCurrentStep('3/4: देवनागरी OCR व रिलेशनल फील्ड एक्सट्रैक्शन (खसरा, अंश, खातेदार)...'), 1600);
-      setTimeout(() => setCurrentStep('4/4: प्रारूप 4/7 नियम सत्यापन एवं डेटाबेस डुप्लीकेट डिटेक्शन...'), 2400);
+      setTimeout(() => setCurrentStep(t('upload.step_preprocess')), 700);
+      setTimeout(() => setCurrentStep(t('upload.step_ocr')), 1600);
+      setTimeout(() => setCurrentStep(t('upload.step_validate')), 2400);
 
       const res = await axios.post('/api/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -105,13 +105,15 @@ export default function UploadPage() {
 
       const data = res.data;
 
-      // Navigate to Review Page
       navigate('/review', {
         state: {
           documentId: data.document_id,
           documentType: data.document_type,
           filename: data.original_filename,
           sourceMode: data.source_mode,
+          classification: data.classification,
+          engineUsed: data.engine_used,
+          evidence: data.evidence,
           pageCount: data.page_count,
           structuredData: data.structured_data,
           fileUrl: URL.createObjectURL(uploadTarget),
@@ -119,7 +121,7 @@ export default function UploadPage() {
         }
       });
     } catch (err) {
-      const detail = err.response?.data?.detail || err.message || 'दस्तावेज़ निष्कर्षण में विफलता हुई।';
+      const detail = err.response?.data?.detail || err.message || t('upload.extract_fail');
       setError(detail);
       setUploading(false);
       setCurrentStep('');
@@ -135,10 +137,10 @@ export default function UploadPage() {
           <div className="gov-loading-box">
             <div className="gov-spinner" />
             <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
-              AI भू-अभिलेख निष्कर्षण प्रगति पर है
+              {t('upload.loading_overlay_title')}
             </h3>
             <p style={{ fontSize: '0.875rem', color: '#475569', margin: 0, fontWeight: 500 }}>
-              {currentStep || 'कृपया प्रतीक्षा करें...'}
+              {currentStep || t('upload.loading_overlay_wait')}
             </p>
             <div style={{
               width: '100%',
@@ -176,8 +178,8 @@ export default function UploadPage() {
             1
           </div>
           <div>
-            <p style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>अपलोड एवं प्री-प्रोसेसिंग</p>
-            <p style={{ fontSize: '0.725rem', color: '#64748b', margin: 0 }}>PDF / JPG प्रमाणित प्रति</p>
+            <p style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>{t('upload.step1_label')}</p>
+            <p style={{ fontSize: '0.725rem', color: '#64748b', margin: 0 }}>{t('upload.step1_sub')}</p>
           </div>
         </div>
 
@@ -186,8 +188,8 @@ export default function UploadPage() {
             2
           </div>
           <div>
-            <p style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>AI OCR व वर्गीकरण</p>
-            <p style={{ fontSize: '0.725rem', color: '#64748b', margin: 0 }}>सह-खातेदार, अंश एवं खसरा</p>
+            <p style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>{t('upload.step2_label')}</p>
+            <p style={{ fontSize: '0.725rem', color: '#64748b', margin: 0 }}>{t('upload.step2_sub')}</p>
           </div>
         </div>
 
@@ -196,8 +198,8 @@ export default function UploadPage() {
             3
           </div>
           <div>
-            <p style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>सत्यापन एवं पंजीयन</p>
-            <p style={{ fontSize: '0.725rem', color: '#64748b', margin: 0 }}>मानव-सत्यापन एवं MySQL सेव</p>
+            <p style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>{t('upload.step3_label')}</p>
+            <p style={{ fontSize: '0.725rem', color: '#64748b', margin: 0 }}>{t('upload.step3_sub')}</p>
           </div>
         </div>
       </div>
@@ -205,14 +207,14 @@ export default function UploadPage() {
       {/* 3. Page Header */}
       <div style={{ marginBottom: '24px' }}>
         <h1 style={{ fontSize: '1.6rem', fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em', margin: '0 0 6px' }}>
-          भू-अभिलेख दस्तावेज़ डिजिटलीकरण स्टूडियो
+          {t('upload.page_title')}
         </h1>
         <p style={{ color: '#475569', fontSize: '0.9rem', margin: 0 }}>
-          मध्य प्रदेश भूलेख अथवा किसी भी राज्य का प्रमाणित राजस्व दस्तावेज़ अपलोड करें। प्रणाली स्वतः देवनागरी टेक्स्ट निकालकर सत्यापित करेगी।
+          {t('upload.page_subtitle')}
         </p>
       </div>
 
-      {/* 4. Quick Demo Preset Buttons (SIH Judge Feature!) */}
+      {/* 4. Quick Demo Preset Buttons */}
       <div style={{
         background: '#eff6ff',
         border: '1px solid #bfdbfe',
@@ -229,10 +231,10 @@ export default function UploadPage() {
           <Sparkles size={20} color="#1d4ed8" />
           <div>
             <p style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e3a8a', margin: 0 }}>
-              त्वरित डेमो परीक्षण (Instant Judge Evaluation Presets)
+              {t('upload.demo_tag')}
             </p>
             <p style={{ fontSize: '0.75rem', color: '#3b82f6', margin: 0 }}>
-              फ़ाइल ढूंढने की आवश्यकता नहीं — वास्तविक प्रमाणित प्रतियों को एक क्लिक में लोड करें:
+              {t('upload.demo_sub')}
             </p>
           </div>
         </div>
@@ -241,21 +243,31 @@ export default function UploadPage() {
           <button
             type="button"
             className="btn-gov-secondary"
-            onClick={() => loadSamplePreset('CertifiedCopy_Bhu-AdhikarPustika_25030879728.pdf', 'भू-अधिकार पुस्तिका (Form 4)')}
+            onClick={() => loadSamplePreset('CertifiedCopy_Bhu-AdhikarPustika_25030879728.pdf', t('upload.demo_form4'), 'application/pdf')}
             disabled={uploading}
             style={{ fontSize: '0.8rem', padding: '7px 14px', background: '#ffffff', borderColor: '#93c5fd' }}
           >
-            <FileCheck size={14} color="#1d4ed8" /> भू-अधिकार पुस्तिका (Form 4)
+            <FileCheck size={14} color="#1d4ed8" /> {t('upload.demo_form4')}
           </button>
 
           <button
             type="button"
             className="btn-gov-secondary"
-            onClick={() => loadSamplePreset('CertifiedCopy_Khatoni(B1)Copy_25030868731.pdf', 'खतौनी बी-1 (Form 7)')}
+            onClick={() => loadSamplePreset('CertifiedCopy_Khatoni(B1)Copy_25030868731.pdf', t('upload.demo_form7'), 'application/pdf')}
             disabled={uploading}
             style={{ fontSize: '0.8rem', padding: '7px 14px', background: '#ffffff', borderColor: '#93c5fd' }}
           >
-            <FileCheck size={14} color="#1d4ed8" /> खतौनी बी-1 (Form 7)
+            <FileCheck size={14} color="#1d4ed8" /> {t('upload.demo_form7')}
+          </button>
+
+          <button
+            type="button"
+            className="btn-gov-secondary"
+            onClick={() => loadSamplePreset('Handwritten_Register_Simariya_Panna.jpeg', t('upload.demo_hwr'), 'image/jpeg')}
+            disabled={uploading}
+            style={{ fontSize: '0.8rem', padding: '7px 14px', background: '#ffffff', borderColor: '#c4b5fd' }}
+          >
+            <Sparkles size={14} color="#7c3aed" /> {t('upload.demo_hwr')}
           </button>
         </div>
       </div>
@@ -265,7 +277,7 @@ export default function UploadPage() {
         <div className="gov-alert error">
           <AlertCircle size={20} style={{ flexShrink: 0 }} />
           <div>
-            <strong>त्रुटि:</strong> {error}
+            <strong>{t('upload.error_prefix')}</strong> {error}
           </div>
         </div>
       )}
@@ -309,7 +321,7 @@ export default function UploadPage() {
                   {file.name}
                 </p>
                 <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0 }}>
-                  {(file.size / 1024).toFixed(1)} KB • {file.type || 'दस्तावेज़'}
+                  {(file.size / 1024).toFixed(1)} KB • {file.type || t('upload.file_unit')}
                 </p>
               </div>
               <button
@@ -318,7 +330,7 @@ export default function UploadPage() {
                 onClick={(e) => { e.stopPropagation(); clearFile(); }}
                 style={{ marginTop: '6px', fontSize: '0.78rem', padding: '5px 12px' }}
               >
-                <X size={13} /> फ़ाइल हटाएं
+                <X size={13} /> {t('upload.file_remove')}
               </button>
             </div>
           ) : (
@@ -337,10 +349,10 @@ export default function UploadPage() {
               </div>
               <div>
                 <p style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0f172a', margin: '0 0 4px' }}>
-                  फ़ाइल को यहाँ खींचें अथवा ब्राउज़ करें
+                  {t('upload.dropzone_title')}
                 </p>
                 <p style={{ fontSize: '0.85rem', color: '#64748b', margin: 0 }}>
-                  प्रमाणित PDF प्रतिलिपि अथवा स्पष्ट स्कैन की गई इमेज (अधिकतम 50 MB)
+                  {t('upload.dropzone_sub')}
                 </p>
               </div>
               <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
@@ -366,26 +378,36 @@ export default function UploadPage() {
       {/* 7. Supported Formats Information Box */}
       <div className="gov-card" style={{ padding: '20px 24px', marginBottom: '28px' }}>
         <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '12px' }}>
-          समर्थित अधिकार अभिलेख प्रारूप (Supported Document Templates)
+          {t('upload.formats_title')}
         </h4>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '16px' }}>
           <div style={{ padding: '14px', borderRadius: '8px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-            <span className="gov-badge info" style={{ marginBottom: '6px' }}>प्रारूप-4 (Form 4)</span>
+            <span className="gov-badge info" style={{ marginBottom: '6px' }}>{t('upload.form4_badge')}</span>
             <p style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.9rem', margin: '4px 0 2px' }}>
-              भू-अधिकार पुस्तिका
+              {t('upload.form4_name')}
             </p>
             <p style={{ fontSize: '0.78rem', color: '#64748b', margin: 0 }}>
-              खाता संख्यांक, CLRM यूनिक ID, भूमिस्वामी नाम, सह-खातेदारों के अंश (1/3, 1/15, 1/9) एवं खसरा-वार क्षेत्रफल।
+              {t('upload.form4_desc')}
             </p>
           </div>
 
           <div style={{ padding: '14px', borderRadius: '8px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-            <span className="gov-badge verified" style={{ marginBottom: '6px' }}>प्रारूप-7 (Form 7)</span>
+            <span className="gov-badge verified" style={{ marginBottom: '6px' }}>{t('upload.form7_badge')}</span>
             <p style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.9rem', margin: '4px 0 2px' }}>
-              खातावार खतौनी अथवा जमाबंदी
+              {t('upload.form7_name')}
             </p>
             <p style={{ fontSize: '0.78rem', color: '#64748b', margin: 0 }}>
-              कुल रकबा (हेक्टेयर), कुल खसरा संख्या, भू-राजस्व (लगान मांग ₹), एवं संयुक्त खातेदारों का विवरण।
+              {t('upload.form7_desc')}
+            </p>
+          </div>
+
+          <div style={{ padding: '14px', borderRadius: '8px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+            <span className="gov-badge warning" style={{ marginBottom: '6px' }}>{t('upload.hwr_badge')}</span>
+            <p style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.9rem', margin: '4px 0 2px' }}>
+              {t('upload.hwr_name')}
+            </p>
+            <p style={{ fontSize: '0.78rem', color: '#64748b', margin: 0 }}>
+              {t('upload.hwr_desc')}
             </p>
           </div>
         </div>
@@ -400,7 +422,7 @@ export default function UploadPage() {
             onClick={clearFile}
             disabled={uploading}
           >
-            रद्द करें
+            {t('upload.btn_cancel')}
           </button>
         )}
 
@@ -411,7 +433,7 @@ export default function UploadPage() {
           disabled={!file || uploading}
           style={{ padding: '11px 28px', fontSize: '0.95rem' }}
         >
-          <UploadCloud size={18} /> दस्तावेज़ प्रोसेस करें <ArrowRight size={16} />
+          <UploadCloud size={18} /> {t('upload.btn_process')} <ArrowRight size={16} />
         </button>
       </div>
 

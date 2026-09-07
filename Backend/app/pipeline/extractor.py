@@ -10,6 +10,7 @@ from PIL import Image
 
 from app.pipeline.detector import detect_document_source
 from app.pipeline.preprocessor import preprocess_image
+from app.pipeline.ocr_types import OCRResult
 
 logger = logging.getLogger("app.pipeline.extractor")
 
@@ -83,19 +84,22 @@ def extract_from_digital_pdf(file_path: str) -> dict:
 
     return {
         "source_mode": "digital_text",
+        "classification": "printed",
+        "engine_used": "pymupdf",
         "page_count": len(page_texts),
         "character_count": sum(p["character_count"] for p in page_texts),
         "average_confidence": 0.98,
         "page_texts": page_texts,
-        "full_text": full_text
+        "full_text": full_text,
+        "evidence": []
     }
 
-def extract_from_ocr(file_path: str) -> dict:
+def extract_from_ocr(file_path: str, classification: str = "printed") -> dict:
     """
     Extracts text using OpenCV preprocessing + Tesseract OCR (hin+eng)
-    for scanned images or scanned PDFs.
+    for scanned images or scanned PDFs. Functions as the baseline/fallback engine.
     """
-    logger.info(f"Extracting OCR text from {file_path}")
+    logger.info(f"Extracting OCR text from {file_path} (fallback mode, classification={classification})")
     global tesseract_cmd
     if not tesseract_cmd:
         tesseract_cmd = find_tesseract_binary()
@@ -117,7 +121,6 @@ def extract_from_ocr(file_path: str) -> dict:
         # Render PDF pages to images using PyMuPDF
         with pymupdf.open(file_path) as doc:
             for page in doc:
-                # 300 DPI render (zoom factor ~4.16 for 72 dpi base)
                 pix = page.get_pixmap(dpi=300)
                 img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
                 images_to_process.append(img)
@@ -129,6 +132,7 @@ def extract_from_ocr(file_path: str) -> dict:
     page_texts = []
     full_text_parts = []
     all_confidences = []
+    all_evidence = []
 
     # Check available languages
     try:
@@ -145,13 +149,27 @@ def extract_from_ocr(file_path: str) -> dict:
         raw_text = pytesseract.image_to_string(preprocessed_img, lang=ocr_lang)
         clean_text = clean_and_normalize_text(raw_text)
 
-        # 3. Calculate confidence via image_to_data
+        # 3. Calculate confidence and capture bounding boxes via image_to_data
         try:
             data = pytesseract.image_to_data(preprocessed_img, lang=ocr_lang, output_type=pytesseract.Output.DICT)
-            confs = [float(c) for c in data.get("conf", []) if str(c).replace("-1", "").strip()]
-            page_conf = (sum(confs) / len(confs) / 100.0) if confs else 0.80
+            n_boxes = len(data.get("text", []))
+            confs = []
+            for i in range(n_boxes):
+                w_text = data["text"][i].strip()
+                w_conf = str(data["conf"][i]).replace("-1", "").strip()
+                if w_text and w_conf:
+                    c_float = float(w_conf) / 100.0
+                    confs.append(c_float)
+                    all_evidence.append({
+                        "page": idx + 1,
+                        "text": w_text,
+                        "confidence": round(c_float, 2),
+                        "bbox": [data["left"][i], data["top"][i], data["width"][i], data["height"][i]],
+                        "is_handwritten": False
+                    })
+            page_conf = (sum(confs) / len(confs)) if confs else 0.80
         except Exception as exc:
-            logger.warning(f"Could not compute OCR confidence: {exc}")
+            logger.warning(f"Could not compute OCR confidence/evidence: {exc}")
             page_conf = 0.80
 
         all_confidences.append(page_conf)
@@ -169,24 +187,47 @@ def extract_from_ocr(file_path: str) -> dict:
 
     return {
         "source_mode": "ocr",
+        "classification": classification,
+        "engine_used": "tesseract_fallback",
         "page_count": len(page_texts),
         "character_count": sum(p["character_count"] for p in page_texts),
         "average_confidence": avg_conf,
         "page_texts": page_texts,
-        "full_text": full_text
+        "full_text": full_text,
+        "evidence": all_evidence
     }
 
 def extract_document(file_path: str) -> dict:
     """
     Main entry point for document extraction:
-    1. Detects document source (digital_text vs ocr).
-    2. Runs the appropriate extraction strategy.
-    3. Normalizes and returns clean structured output.
+    1. Detects document source (digital_text vs ocr) and classification (printed, handwritten, mixed, unknown).
+    2. Runs the appropriate extraction strategy:
+       - digital_text -> PyMuPDF digital extraction
+       - handwritten or mixed -> Self-hosted Indic handwriting engine (EasyOCR) with Tesseract fallback
+       - printed or unknown -> Baseline Tesseract OCR with OpenCV preprocessing
+    3. Returns unified dictionary conforming to OCRResult data contract.
     """
-    source_mode, page_count = detect_document_source(file_path)
-    logger.info(f"Document {file_path} resolved to source mode: {source_mode} ({page_count} pages)")
+    source_mode, page_count, classification = detect_document_source(file_path)
+    logger.info(
+        f"Document {file_path} resolved to source_mode: {source_mode} "
+        f"({page_count} pages), classification: {classification}"
+    )
 
     if source_mode == "digital_text":
         return extract_from_digital_pdf(file_path)
-    else:
-        return extract_from_ocr(file_path)
+
+    # For handwritten or mixed scanned documents, invoke the dedicated local Indic handwriting adapter
+    if classification in {"handwritten", "mixed"}:
+        try:
+            from app.pipeline.handwriting_adapter import extract_handwritten_document
+            hwr_result = extract_handwritten_document(file_path, classification=classification)
+            return hwr_result.to_dict()
+        except Exception as exc:
+            logger.warning(
+                f"Handwriting adapter failed on {file_path}: {exc}. "
+                f"Gracefully falling back to baseline Tesseract OCR."
+            )
+            return extract_from_ocr(file_path, classification=classification)
+
+    # Scanned printed documents
+    return extract_from_ocr(file_path, classification=classification)

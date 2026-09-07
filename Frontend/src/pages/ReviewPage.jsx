@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 import {
   Save, ArrowLeft, AlertTriangle, CheckCircle2,
@@ -54,6 +55,7 @@ function initParcels(parcels) {
 
 /* ── Validation Alerts Banner ────────────────────────────────── */
 function ValidationSummaryBanner({ validation, extractionMeta }) {
+  const { t } = useTranslation();
   if (!validation && !extractionMeta) return null;
 
   const errors = validation?.errors || [];
@@ -67,7 +69,7 @@ function ValidationSummaryBanner({ validation, extractionMeta }) {
       <div className="gov-alert error">
         <AlertCircle size={20} style={{ flexShrink: 0, marginTop: '2px' }} />
         <div>
-          <strong style={{ fontSize: '0.9rem' }}>मान्यीकरण विसंगतियां ({errors.length}):</strong>
+          <strong style={{ fontSize: '0.9rem' }}>{t('review.validation_errors')} ({errors.length}):</strong>
           <ul style={{ marginTop: '6px', paddingLeft: '18px', fontSize: '0.85rem', lineHeight: 1.6 }}>
             {errors.map((e, i) => <li key={i}>{e.message}</li>)}
           </ul>
@@ -83,17 +85,17 @@ function ValidationSummaryBanner({ validation, extractionMeta }) {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <strong style={{ fontSize: '0.9rem' }}>
-              {isDup ? '⚠️ संभावित दोहराव (Duplicate Record Alert):' : 'सावधानी / ध्यान देने योग्य तथ्य:'}
+              {isDup ? `⚠️ ${t('review.dup_warning')}:` : t('review.missing_fields') + ':'}
             </strong>
           </div>
           <ul style={{ marginTop: '6px', paddingLeft: '18px', fontSize: '0.85rem', lineHeight: 1.6 }}>
             {isDup && (
               <li>
-                यह खाता या CLRM नंबर डेटाबेस में पहले से मौजूद है ({dupMatches.length} मिलान मिले)। सरकारी नियमों के अनुसार रिकॉर्ड फिर भी सहेजा जा सकता है।
+                {t('review.dup_warning')} ({dupMatches.length})
               </li>
             )}
             {missing.map((m, i) => (
-              <li key={`m-${i}`}>आवश्यक फ़ील्ड रिक्त है: <strong>{m}</strong></li>
+              <li key={`m-${i}`}>{t('review.missing_fields')}: <strong>{m}</strong></li>
             ))}
             {warnings.map((w, i) => (
               <li key={`w-${i}`}>{w.message}</li>
@@ -108,7 +110,7 @@ function ValidationSummaryBanner({ validation, extractionMeta }) {
     <div className="gov-alert success">
       <CheckCircle2 size={20} style={{ flexShrink: 0 }} />
       <div>
-        <strong>समस्त नियम सत्यापित (Validation Passed):</strong> निष्कर्षण त्रुटिरहित है और सभी अनिवार्य फ़ील्ड्स मौजूद हैं।
+        <strong>Validation Passed:</strong> Extraction is error-free and all required fields are present.
       </div>
     </div>
   );
@@ -118,6 +120,7 @@ function ValidationSummaryBanner({ validation, extractionMeta }) {
 export default function ReviewPage() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const state = location.state;
 
   useEffect(() => {
@@ -128,7 +131,7 @@ export default function ReviewPage() {
 
   if (!state?.structuredData) return null;
 
-  const { documentId, filename, fileUrl, fileType, structuredData, documentType } = state;
+  const { documentId, filename, fileUrl, fileType, structuredData, documentType, classification, engineUsed, evidence } = state;
   const { khata: rawKhata, owners: rawOwners, parcels: rawParcels, extraction_meta, validation } = structuredData;
 
   /* State */
@@ -180,7 +183,7 @@ export default function ReviewPage() {
 
   const removeOwner = (idx) => {
     if (owners.length <= 1) {
-      alert('कम से कम एक खातेदार होना अनिवार्य है।');
+      alert('At least one owner is required.');
       return;
     }
     setHasEdits(true);
@@ -211,7 +214,7 @@ export default function ReviewPage() {
 
   const removeParcel = (idx) => {
     if (parcels.length <= 1) {
-      alert('कम से कम एक खसरा भू-खण्ड होना अनिवार्य है।');
+      alert('At least one survey parcel is required.');
       return;
     }
     setHasEdits(true);
@@ -260,23 +263,35 @@ export default function ReviewPage() {
 
       const res = await axios.post('/api/records', payload);
       setHasEdits(false);
-      showToast(`भू-अभिलेख सफलतापूर्वक पंजीकृत हुआ! खाता आईडी: #${res.data.khata_id}`, 'success');
+      showToast(t('review.save_success') + ` ID: #${res.data.khata_id}`, 'success');
 
       setTimeout(() => {
         navigate(`/records/${res.data.khata_id}`);
       }, 1200);
     } catch (err) {
-      const detail = err.response?.data?.detail || err.message || 'रिकॉर्ड सुरक्षित करने में त्रुटि हुई।';
-      showToast(detail, 'error');
+      const detail = err.response?.data?.detail;
+      let errMsg = t('review.save_error');
+      if (typeof detail === 'object' && detail !== null) {
+        if (detail.errors && Array.isArray(detail.errors) && detail.errors.length > 0) {
+          errMsg = detail.errors.map(e => e.message).join(' | ');
+        } else if (detail.message) {
+          errMsg = detail.message;
+        }
+      } else if (typeof detail === 'string') {
+        errMsg = detail;
+      } else if (err.message) {
+        errMsg = err.message;
+      }
+      showToast(errMsg, 'error');
       setSaving(false);
     }
   };
 
   const docLabel = documentType === 'bhu_adhikar_pustika'
-    ? 'प्रारूप-4: भू-अधिकार पुस्तिका'
+    ? t('upload.form4_badge') + ': ' + t('upload.form4_name')
     : documentType === 'khatoni_b1'
-      ? 'प्रारूप-7: खतौनी / जमाबंदी'
-      : 'राजस्व अभिलेख';
+      ? t('upload.form7_badge') + ': ' + t('upload.form7_name')
+      : 'Revenue Record';
 
   return (
     <div style={{ maxWidth: '1600px', margin: '0 auto', padding: '24px 20px 48px' }}>
@@ -309,17 +324,27 @@ export default function ReviewPage() {
             onClick={() => navigate('/upload')}
             style={{ padding: '7px 12px', fontSize: '0.85rem' }}
           >
-            <ArrowLeft size={15} /> नया दस्तावेज़
+            <ArrowLeft size={15} /> {t('nav.digitize')}
           </button>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <span className="gov-badge info">{docLabel}</span>
+              {classification && (
+                <span className={`gov-badge ${classification === 'handwritten' ? 'warning' : classification === 'mixed' ? 'info' : 'verified'}`}>
+                  {classification === 'handwritten' ? `✍️ ${t('review.badge_handwritten')}` : classification === 'mixed' ? `📋 ${t('review.badge_mixed')}` : `🖨️ ${t('review.badge_printed')}`}
+                </span>
+              )}
+              {engineUsed && (
+                <span style={{ fontSize: '0.72rem', color: '#475569', background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '2px 8px', borderRadius: '4px', fontFamily: 'var(--font-mono)' }}>
+                  {engineUsed}
+                </span>
+              )}
               <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
                 ID: #{documentId} • {filename}
               </span>
             </div>
             <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', margin: '2px 0 0' }}>
-              मानव सत्यापन एवं समीक्षा कंसोल (Human-in-the-Loop Review)
+              {t('review.page_title')}
             </h2>
           </div>
         </div>
@@ -338,7 +363,7 @@ export default function ReviewPage() {
               alignItems: 'center',
               gap: '4px'
             }}>
-              <AlertTriangle size={13} /> असुरक्षित संपादन (Unsaved)
+              <AlertTriangle size={13} /> Unsaved Edits
             </span>
           ) : (
             <span style={{
@@ -349,7 +374,7 @@ export default function ReviewPage() {
               padding: '5px 10px',
               borderRadius: '6px'
             }}>
-              ✓ मूल एक्सट्रैक्शन
+              ✓ Original Extraction
             </span>
           )}
           <button
@@ -360,7 +385,7 @@ export default function ReviewPage() {
             title="कीबोर्ड शॉर्टकट: Ctrl+S"
             style={{ padding: '10px 24px', fontSize: '0.9rem' }}
           >
-            <Save size={16} /> {saving ? 'पंजीकरण हो रहा है...' : 'डेटाबेस में सहेजें (Ctrl+S)'}
+            <Save size={16} /> {saving ? t('review.saving') : `${t('review.save_btn')} (Ctrl+S)`}
           </button>
         </div>
       </div>
@@ -379,7 +404,7 @@ export default function ReviewPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <FileText size={16} color="#1e3a8a" />
               <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0f172a' }}>
-                मूल प्रमाणित प्रतिलिपि (Source Document)
+                {t('review.doc_preview')}
               </span>
             </div>
 
@@ -463,7 +488,7 @@ export default function ReviewPage() {
                 )}
               </div>
             ) : (
-              <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>प्रिव्यू उपलब्ध नहीं है।</p>
+              <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>{t('review.preview_unavailable')}</p>
             )}
           </div>
         </div>
@@ -488,18 +513,18 @@ export default function ReviewPage() {
             boxShadow: 'var(--shadow-sm)'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <span style={{ fontSize: '0.8rem', color: '#64748b' }}>औसत AI शुद्धता:</span>
+              <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Avg AI Accuracy:</span>
               <span className="conf-pill high" style={{ fontSize: '0.8rem' }}>
                 {extraction_meta?.average_confidence ? `${Math.round(extraction_meta.average_confidence * 100)}%` : '94%'}
               </span>
             </div>
 
             <div style={{ display: 'flex', gap: '16px', fontSize: '0.8rem', color: '#475569' }}>
-              <span>खातेदार: <strong>{owners.length}</strong></span>
+              <span>{t('review.owner_count')}: <strong>{owners.length}</strong></span>
               <span>•</span>
-              <span>खसरे: <strong>{parcels.length}</strong></span>
+              <span>{t('review.parcel_count')}: <strong>{parcels.length}</strong></span>
               <span>•</span>
-              <span>दस्तावेज़ ID: <strong>#{documentId}</strong></span>
+              <span>{t('review.doc_info')} ID: <strong>#{documentId}</strong></span>
             </div>
           </div>
 
@@ -507,7 +532,7 @@ export default function ReviewPage() {
           <div className="gov-card" style={{ padding: 0 }}>
             <div className="gov-card-header">
               <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0f172a' }}>
-                1. खाता मास्टर विवरण (Khata Jurisdiction & Identifiers)
+                1. {t('review.section_khata')}
               </span>
               <span className="gov-badge info">अनिवार्य हेडर</span>
             </div>
@@ -659,9 +684,9 @@ export default function ReviewPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Users size={16} color="#059669" />
                 <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0f172a' }}>
-                  2. सह-खातेदार एवं अंश विवरण (Co-Owners & Fractional Shares)
+                  2. {t('review.section_owners')}
                 </span>
-                <span className="gov-badge verified">{owners.length} खातेदार</span>
+                <span className="gov-badge verified">{owners.length} {t('review.owner_count')}</span>
               </div>
 
               {/* Add Co-owner Button */}
@@ -671,7 +696,7 @@ export default function ReviewPage() {
                 onClick={addOwner}
                 style={{ fontSize: '0.78rem', padding: '5px 12px', background: '#ecfdf5', borderColor: '#a7f3d0', color: '#065f46' }}
               >
-                <Plus size={13} /> + नया सह-खातेदार जोड़ें
+                <Plus size={13} /> {t('review.add_owner')}
               </button>
             </div>
 
@@ -680,10 +705,10 @@ export default function ReviewPage() {
                 <thead>
                   <tr>
                     <th style={{ width: '40px' }}>#</th>
-                    <th>भूमिस्वामी का नाम (Owner)</th>
-                    <th>पिता / पति का नाम (Guardian)</th>
-                    <th style={{ width: '90px' }}>अंश (Share)</th>
-                    <th style={{ width: '130px' }}>अधिकार स्वरूप (Status)</th>
+                    <th>{t('review.col_owner_name')}</th>
+                    <th>{t('review.col_guardian')}</th>
+                    <th style={{ width: '90px' }}>{t('review.col_share')}</th>
+                    <th style={{ width: '130px' }}>{t('review.col_ownership')}</th>
                     <th style={{ width: '60px', textAlign: 'center' }}>Conf</th>
                     <th style={{ width: '40px', textAlign: 'center' }}></th>
                   </tr>
@@ -754,9 +779,9 @@ export default function ReviewPage() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Layers size={16} color="#d97706" />
                 <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0f172a' }}>
-                  3. भू-खण्ड / खसरा एवं क्षेत्रफल विवरण (Survey Parcels & Revenue)
+                  3. {t('review.section_parcels')}
                 </span>
-                <span className="gov-badge pending">{parcels.length} खसरे</span>
+                <span className="gov-badge pending">{parcels.length} {t('review.parcel_count')}</span>
               </div>
 
               {/* Add Parcel Button */}
@@ -766,7 +791,7 @@ export default function ReviewPage() {
                 onClick={addParcel}
                 style={{ fontSize: '0.78rem', padding: '5px 12px', background: '#fffbeb', borderColor: '#fde68a', color: '#92400e' }}
               >
-                <Plus size={13} /> + नया खसरा जोड़ें
+                <Plus size={13} /> {t('review.add_parcel')}
               </button>
             </div>
 
@@ -775,11 +800,11 @@ export default function ReviewPage() {
                 <thead>
                   <tr>
                     <th style={{ width: '40px' }}>#</th>
-                    <th>खसरा / सर्वे क्रमांक (Survey No.)</th>
-                    <th style={{ width: '110px' }}>रकबा (हेक्टेयर)</th>
-                    <th style={{ width: '100px' }}>लगान मांग (₹)</th>
-                    <th style={{ width: '100px' }}>उपयोग (Use)</th>
-                    <th style={{ width: '70px', textAlign: 'center' }}>प्रकार</th>
+                    <th>{t('review.col_survey_no')}</th>
+                    <th style={{ width: '110px' }}>{t('review.col_area')}</th>
+                    <th style={{ width: '100px' }}>{t('review.col_revenue')}</th>
+                    <th style={{ width: '100px' }}>{t('review.col_land_use')}</th>
+                    <th style={{ width: '70px', textAlign: 'center' }}>{t('review.col_land_use_flag')}</th>
                     <th style={{ width: '60px', textAlign: 'center' }}>Conf</th>
                     <th style={{ width: '40px', textAlign: 'center' }}></th>
                   </tr>
@@ -877,10 +902,10 @@ export default function ReviewPage() {
           }}>
             <div>
               <p style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>
-                सत्यापन पश्चात अंतिम अभिलेख पंजीकरण
+                {t('review.page_subtitle')}
               </p>
               <p style={{ fontSize: '0.75rem', color: '#64748b', margin: 0 }}>
-                डाटा सीधे राष्ट्रीय भू-अभिलेख डेटाबेस (MySQL) में सुरक्षित किया जाएगा • शॉर्टकट: <kbd style={{ background: '#e2e8f0', padding: '1px 5px', borderRadius: '4px', fontSize: '0.7rem' }}>Ctrl + S</kbd>
+                Data saved directly to National Land Records Database (MySQL) • Shortcut: <kbd style={{ background: '#e2e8f0', padding: '1px 5px', borderRadius: '4px', fontSize: '0.7rem' }}>Ctrl + S</kbd>
               </p>
             </div>
 
@@ -891,7 +916,7 @@ export default function ReviewPage() {
               disabled={saving}
               style={{ padding: '12px 32px', fontSize: '0.95rem' }}
             >
-              <Save size={18} /> {saving ? 'सहेजा जा रहा है...' : 'डेटाबेस में सहेजें (Save Record)'}
+              <Save size={18} /> {saving ? t('review.saving') : t('review.save_btn')}
             </button>
           </div>
 

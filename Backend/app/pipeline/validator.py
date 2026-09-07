@@ -47,6 +47,10 @@ SURVEY_NUMBER_RE = re.compile(
 # Fasli year pattern: "YYYY-YYYY" where second year = first + 1
 FASLI_YEAR_RE = re.compile(r"^(\d{4})-(\d{4})$")
 
+# Share fraction patterns (e.g., "1/3", "2/4", "0.5", "50%")
+SHARE_FRACTION_RE = re.compile(r"^(\d+)\s*/\s*(\d+)$")
+DECIMAL_OR_PCT_RE = re.compile(r"^(\d+(?:\.\d+)?)\s*(%?)$")
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -231,6 +235,93 @@ def _check_date_sanity(khata: dict) -> tuple[list, list]:
 
 
 # ---------------------------------------------------------------------------
+# Rule 3b: Owner share-fraction check
+# ---------------------------------------------------------------------------
+
+def _check_owner_share_fractions(owners: list) -> tuple[list, list]:
+    """
+    Validates owner share fractions according to constraint rules:
+    - Invalid format, negative share, or zero denominator -> BLOCKING ERROR.
+    - Total share sum > 1.0 -> BLOCKING ERROR (co-owners cannot own > 100%).
+    - Total share sum < 1.0 -> ADVISORY WARNING (parcel portion may be undivided).
+    """
+    errors, warnings = [], []
+    parsed_shares = []
+    has_specified_share = False
+
+    for idx, owner in enumerate(owners):
+        label = f"owners[{idx}].share_fraction"
+        share_raw = _get_val(owner.get("share_fraction")) if isinstance(owner.get("share_fraction"), dict) else owner.get("share_fraction")
+        if share_raw is None or str(share_raw).strip() == "":
+            continue
+
+        has_specified_share = True
+        s_str = str(share_raw).strip()
+
+        # Fraction format (e.g. "1/3", "2/4")
+        frac_match = SHARE_FRACTION_RE.match(s_str)
+        if frac_match:
+            num = int(frac_match.group(1))
+            den = int(frac_match.group(2))
+            if den == 0:
+                errors.append(_error(
+                    rule="share_fraction_invalid",
+                    field=label,
+                    message=f"Division by zero in share fraction '{s_str}'."
+                ))
+            elif num < 0:
+                errors.append(_error(
+                    rule="share_fraction_invalid",
+                    field=label,
+                    message=f"Share fraction numerator cannot be negative: '{s_str}'."
+                ))
+            else:
+                parsed_shares.append(float(num) / float(den))
+            continue
+
+        # Decimal or Percentage format (e.g. "0.5", "50%")
+        dec_match = DECIMAL_OR_PCT_RE.match(s_str)
+        if dec_match:
+            val = float(dec_match.group(1))
+            is_pct = dec_match.group(2) == "%"
+            frac_val = (val / 100.0) if is_pct else val
+            if frac_val < 0:
+                errors.append(_error(
+                    rule="share_fraction_invalid",
+                    field=label,
+                    message=f"Share fraction cannot be negative: '{s_str}'."
+                ))
+            else:
+                parsed_shares.append(frac_val)
+            continue
+
+        # Invalid format
+        errors.append(_error(
+            rule="share_fraction_invalid",
+            field=label,
+            message=f"Invalid share fraction format '{s_str}'. Expected format like '1/3', '1/2', or '0.5'."
+        ))
+
+    # Evaluate sum if valid shares were parsed and no invalid fraction errors
+    if has_specified_share and not errors and parsed_shares:
+        total_share = sum(parsed_shares)
+        if total_share > 1.0001:
+            errors.append(_error(
+                rule="share_fraction_sum",
+                field="owners.share_fraction",
+                message=f"Total owner share fractions exceed 1.0 (sum = {round(total_share, 4)}). Co-owners cannot hold more than 100% of the parcel."
+            ))
+        elif total_share < 0.9999 and len(parsed_shares) > 1:
+            warnings.append(_warning(
+                rule="share_fraction_sum",
+                field="owners.share_fraction",
+                message=f"Total owner share fractions sum to {round(total_share, 4)} (< 1.0). Portion of the khata may be undivided or unspecified."
+            ))
+
+    return errors, warnings
+
+
+# ---------------------------------------------------------------------------
 # Rule 4: Duplicate detection (requires DB session)
 # ---------------------------------------------------------------------------
 
@@ -365,6 +456,11 @@ def validate_extraction(
     all_errors.extend(e)
     all_warnings.extend(w)
 
+    # Rule 3b: Owner share fractions
+    e, w = _check_owner_share_fractions(owners)
+    all_errors.extend(e)
+    all_warnings.extend(w)
+
     # Rule 4: Duplicate detection (DB lookup)
     is_duplicate = False
     duplicate_matches: list[dict] = []
@@ -395,3 +491,51 @@ def validate_extraction(
         "is_duplicate": is_duplicate,
         "duplicate_matches": duplicate_matches,
     }
+
+
+def validate_record_payload(payload_dict: dict, db: Session) -> dict:
+    """
+    Authoritative server-side re-validation for the final user-edited data payload
+    sent to POST /api/records before saving to MySQL.
+    """
+    khata = payload_dict.get("khata", {})
+    owners = payload_dict.get("owners", [])
+    parcels = payload_dict.get("parcels", [])
+
+    # Ensure khata fields are wrapped or plain-compatible
+    wrapped_khata = {}
+    for k, v in khata.items():
+        if isinstance(v, dict) and "value" in v:
+            wrapped_khata[k] = v
+        else:
+            wrapped_khata[k] = {"value": v}
+
+    wrapped_owners = []
+    for o in owners:
+        w_o = {}
+        o_dict = o.dict() if hasattr(o, "dict") else (o if isinstance(o, dict) else o.__dict__)
+        for k, v in o_dict.items():
+            if isinstance(v, dict) and "value" in v:
+                w_o[k] = v
+            else:
+                w_o[k] = {"value": v}
+        wrapped_owners.append(w_o)
+
+    wrapped_parcels = []
+    for p in parcels:
+        w_p = {}
+        p_dict = p.dict() if hasattr(p, "dict") else (p if isinstance(p, dict) else p.__dict__)
+        for k, v in p_dict.items():
+            if isinstance(v, dict) and "value" in v:
+                w_p[k] = v
+            else:
+                w_p[k] = {"value": v}
+        wrapped_parcels.append(w_p)
+
+    structured_data = {
+        "khata": wrapped_khata,
+        "owners": wrapped_owners,
+        "parcels": wrapped_parcels,
+    }
+
+    return validate_extraction(structured_data, db)

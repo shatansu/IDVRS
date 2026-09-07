@@ -1,31 +1,33 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 import {
   ArrowLeft, CheckCircle2, Clock, Copy, Loader2,
   AlertTriangle, FileText, User, Users, Layers, Printer,
-  Shield, Building2, Download, Check, MapPin
+  Shield, Building2, Download, Check, MapPin, AlertCircle
 } from 'lucide-react';
 
 /* ── Status Pill ───────────────────────────────────────────── */
 function StatusPill({ status, isDuplicate }) {
+  const { t } = useTranslation();
   if (isDuplicate) {
     return (
       <span className="gov-badge duplicate" style={{ fontSize: '0.8rem', padding: '4px 12px' }}>
-        <Copy size={12} /> संभावित दोहराव (Duplicate Flagged)
+        <Copy size={12} /> {t('status.duplicate_flagged')}
       </span>
     );
   }
   if (status === 'verified') {
     return (
       <span className="gov-badge verified" style={{ fontSize: '0.8rem', padding: '4px 12px' }}>
-        <CheckCircle2 size={12} /> सत्यापित (Verified RoR)
+        <CheckCircle2 size={12} /> {t('status.verified_ror')}
       </span>
     );
   }
   return (
     <span className="gov-badge pending" style={{ fontSize: '0.8rem', padding: '4px 12px' }}>
-      <Clock size={12} /> समीक्षाधीन (Pending Audit)
+      <Clock size={12} /> {t('status.pending_audit')}
     </span>
   );
 }
@@ -67,6 +69,7 @@ function InfoItem({ label, value, isCode }) {
 export default function RecordDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const [rec, setRec] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -81,10 +84,10 @@ export default function RecordDetailPage() {
         setLoading(false);
       })
       .catch(err => {
-        setError(err.response?.data?.detail || err.message || 'रिकॉर्ड लोड करने में विफलता।');
+        setError(err.response?.data?.detail || err.message || t('record_detail.error_load'));
         setLoading(false);
       });
-  }, [id]);
+  }, [id, t]);
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
@@ -97,9 +100,9 @@ export default function RecordDetailPage() {
     try {
       await axios.patch(`/api/records/${id}/status`, { review_status: newStatus });
       setRec(r => ({ ...r, review_status: newStatus }));
-      showToast(newStatus === 'verified' ? 'भू-अभिलेख को सत्यापित चिह्नित किया गया।' : 'भू-अभिलेख को समीक्षाधीन चिह्नित किया गया।');
+      showToast(newStatus === 'verified' ? t('record_detail.toast_verified') : t('record_detail.toast_pending'));
     } catch {
-      showToast('स्थिति अद्यतन करने में त्रुटि हुई।', 'error');
+      showToast(t('record_detail.toast_error'), 'error');
     } finally {
       setUpdating(false);
     }
@@ -110,7 +113,7 @@ export default function RecordDetailPage() {
       <div style={{ minHeight: '80vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '14px' }}>
         <div className="gov-spinner" />
         <p style={{ color: '#64748b', fontSize: '0.9rem', fontWeight: 500 }}>
-          अभिलेख #{id} का विवरण लोड हो रहा है...
+          {t('record_detail.loading', { id })}
         </p>
       </div>
     );
@@ -124,7 +127,7 @@ export default function RecordDetailPage() {
           <div>{error}</div>
         </div>
         <button className="btn-gov-secondary" onClick={() => navigate('/records')}>
-          <ArrowLeft size={15} /> पंजिका पर वापस जाएं
+          <ArrowLeft size={15} /> {t('record_detail.btn_back')}
         </button>
       </div>
     );
@@ -145,7 +148,7 @@ export default function RecordDetailPage() {
         </div>
       )}
 
-      {/* 1. Command Bar (Hidden during print) */}
+      {/* 1. Command Bar */}
       <div className="no-print" style={{
         display: 'flex',
         alignItems: 'center',
@@ -160,7 +163,7 @@ export default function RecordDetailPage() {
             className="btn-gov-secondary"
             onClick={() => navigate('/records')}
           >
-            <ArrowLeft size={15} /> पंजिका सूची
+            <ArrowLeft size={15} /> {t('record_detail.btn_back')}
           </button>
           <StatusPill status={rec.review_status} isDuplicate={rec.is_duplicate_flag} />
         </div>
@@ -170,10 +173,10 @@ export default function RecordDetailPage() {
             type="button"
             className="btn-gov-secondary"
             onClick={() => navigate(`/gis?recordId=${rec.id}`)}
-            title="भू-नक्शा / कैडस्ट्रल मानचित्र पर देखें"
+            title={t('record_detail.btn_map_title')}
             style={{ color: '#0369a1', borderColor: '#bae6fd', background: '#f0f9ff' }}
           >
-            <MapPin size={15} /> भू-नक्शा पर देखें (View on Map)
+            <MapPin size={15} /> {t('record_detail.btn_map')}
           </button>
 
           <button
@@ -181,7 +184,7 @@ export default function RecordDetailPage() {
             className="btn-gov-secondary"
             onClick={() => window.print()}
           >
-            <Printer size={15} /> प्रमाणित प्रति प्रिंट करें (Print RoR)
+            <Printer size={15} /> {t('record_detail.btn_print')}
           </button>
 
           <button
@@ -191,11 +194,11 @@ export default function RecordDetailPage() {
             disabled={updating}
           >
             {updating ? (
-              <><Loader2 size={15} className="animate-spin" /> अद्यतन हो रहा है...</>
+              <><Loader2 size={15} className="animate-spin" /> {t('record_detail.btn_updating')}</>
             ) : rec.review_status === 'verified' ? (
-              <><Clock size={15} /> स्थिति बदलें: समीक्षाधीन</>
+              <><Clock size={15} /> {t('record_detail.btn_revert_pending')}</>
             ) : (
-              <><CheckCircle2 size={15} /> अधिकारिक सत्यापन करें (Verify)</>
+              <><CheckCircle2 size={15} /> {t('record_detail.btn_verify')}</>
             )}
           </button>
         </div>
@@ -208,21 +211,21 @@ export default function RecordDetailPage() {
         <div style={{ textAlign: 'center', borderBottom: '2px solid #0f172a', paddingBottom: '20px', marginBottom: '24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '6px' }}>
             <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#1e3a8a', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              राजस्व विभाग • मध्य प्रदेश शासन (DoLR)
+              {t('record_detail.ror_dept')}
             </span>
           </div>
           <h2 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#0f172a', margin: '0 0 4px' }}>
-            डिजिटाइज्ड अधिकार अभिलेख (Record of Rights - Certified Extract)
+            {t('record_detail.ror_title')}
           </h2>
           <p style={{ fontSize: '0.85rem', color: '#475569', margin: 0 }}>
-            मध्य प्रदेश भू-राजस्व संहिता (भू-सर्वेक्षण तथा भू-अभिलेख) नियम • कंप्यूटर प्रपत्र सारांश
+            {t('record_detail.ror_subtitle')}
           </p>
           <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', fontSize: '0.78rem', color: '#64748b', marginTop: '8px' }}>
-            <span>खाता आईडी: <strong>#{rec.id}</strong></span>
+            <span>{t('record_detail.khata_id_label')} <strong>#{rec.id}</strong></span>
             <span>•</span>
-            <span>दस्तावेज़ ID: <strong>#{rec.document_id}</strong></span>
+            <span>{t('record_detail.doc_id_label')} <strong>#{rec.document_id}</strong></span>
             <span>•</span>
-            <span>प्रमाणित दिनांक: <strong>{rec.created_at ? new Date(rec.created_at).toLocaleDateString() : '—'}</strong></span>
+            <span>{t('record_detail.certified_date_label')} <strong>{rec.created_at ? new Date(rec.created_at).toLocaleDateString() : '—'}</strong></span>
           </div>
         </div>
 
@@ -237,24 +240,24 @@ export default function RecordDetailPage() {
           gap: '16px',
           marginBottom: '28px'
         }}>
-          <InfoItem label="CLRM क्रमांक" value={rec.clrm_no} isCode />
-          <InfoItem label="खाता संख्यांक" value={rec.khata_number} isCode />
-          <InfoItem label="ग्राम का नाम" value={rec.village} />
-          <InfoItem label="तहसील" value={rec.tehsil} />
-          <InfoItem label="जिला" value={rec.district} />
-          <InfoItem label="राज्य" value={rec.state} />
-          <InfoItem label="फसली वर्ष" value={rec.fasli_year} isCode />
-          <InfoItem label="पटवारी हल्का" value={rec.patwari_halka_no} />
+          <InfoItem label={t('record_detail.label_clrm')} value={rec.clrm_no} isCode />
+          <InfoItem label={t('record_detail.label_khata_no')} value={rec.khata_number} isCode />
+          <InfoItem label={t('record_detail.label_village')} value={rec.village} />
+          <InfoItem label={t('record_detail.label_tehsil')} value={rec.tehsil} />
+          <InfoItem label={t('record_detail.label_district')} value={rec.district} />
+          <InfoItem label={t('record_detail.label_state')} value={rec.state} />
+          <InfoItem label={t('record_detail.label_fasli')} value={rec.fasli_year} isCode />
+          <InfoItem label={t('record_detail.label_halka')} value={rec.patwari_halka_no} />
         </div>
 
-        {/* 3. Co-Owners Table (सह-खातेदारों की सूची) */}
+        {/* 3. Co-Owners Table */}
         <div style={{ marginBottom: '32px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
             <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Users size={16} color="#1e3a8a" /> सह-खातेदारों का विवरण (Co-Owners & Fractional Holdings)
+              <Users size={16} color="#1e3a8a" /> {t('record_detail.owners_section')}
             </h3>
             <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
-              कुल खातेदार: <strong>{rec.owners.length}</strong>
+              {t('record_detail.owners_total')} <strong>{rec.owners.length}</strong>
             </span>
           </div>
 
@@ -262,18 +265,18 @@ export default function RecordDetailPage() {
             <table className="gov-table" style={{ margin: 0 }}>
               <thead>
                 <tr>
-                  <th style={{ width: '40px' }}>क्र.</th>
-                  <th>भूमिस्वामी का नाम (Owner Name)</th>
-                  <th>माता / पिता / पति का नाम (Guardian)</th>
-                  <th style={{ width: '90px', textAlign: 'center' }}>अंश (Fraction)</th>
-                  <th style={{ width: '100px', textAlign: 'center' }}>हिस्सा प्रतिशत</th>
-                  <th style={{ width: '130px' }}>अधिकार स्वरूप</th>
-                  <th>निवास का पता</th>
+                  <th style={{ width: '40px' }}>{t('record_detail.col_sno')}</th>
+                  <th>{t('record_detail.col_owner_name')}</th>
+                  <th>{t('record_detail.col_guardian')}</th>
+                  <th style={{ width: '90px', textAlign: 'center' }}>{t('record_detail.col_share')}</th>
+                  <th style={{ width: '100px', textAlign: 'center' }}>{t('record_detail.col_share_pct')}</th>
+                  <th style={{ width: '130px' }}>{t('record_detail.col_ownership')}</th>
+                  <th>{t('record_detail.col_address')}</th>
                 </tr>
               </thead>
               <tbody>
                 {rec.owners.length === 0 ? (
-                  <tr><td colSpan={7} style={{ textAlign: 'center', padding: '20px', color: '#94a3b8' }}>कोई खातेदार दर्ज नहीं है।</td></tr>
+                  <tr><td colSpan={7} style={{ textAlign: 'center', padding: '20px', color: '#94a3b8' }}>{t('record_detail.no_owners')}</td></tr>
                 ) : (
                   rec.owners.map((o, i) => (
                     <tr key={o.id || i}>
@@ -306,14 +309,14 @@ export default function RecordDetailPage() {
           </div>
         </div>
 
-        {/* 4. Survey Parcels Table (खसरा एवं क्षेत्रफल सूची) */}
+        {/* 4. Survey Parcels Table */}
         <div style={{ marginBottom: '32px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
             <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Layers size={16} color="#059669" /> भू-खण्ड / खसरा वार क्षेत्रफल एवं लगान (Survey Parcels)
+              <Layers size={16} color="#059669" /> {t('record_detail.parcels_section')}
             </h3>
             <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
-              कुल खसरे: <strong>{rec.parcels.length}</strong>
+              {t('record_detail.parcels_total')} <strong>{rec.parcels.length}</strong>
             </span>
           </div>
 
@@ -321,18 +324,18 @@ export default function RecordDetailPage() {
             <table className="gov-table" style={{ margin: 0 }}>
               <thead>
                 <tr>
-                  <th style={{ width: '40px' }}>क्र.</th>
-                  <th>खसरा / सर्वे क्रमांक (Survey No.)</th>
-                  <th>भू-भाग यूनिक आईडी (Parcel UID)</th>
-                  <th style={{ width: '80px', textAlign: 'center' }}>प्रकार</th>
-                  <th>उपयोग (Land Use)</th>
-                  <th style={{ width: '130px', textAlign: 'right' }}>क्षेत्रफल (हेक्टेयर)</th>
-                  <th style={{ width: '130px', textAlign: 'right' }}>भू-राजस्व (₹)</th>
+                  <th style={{ width: '40px' }}>{t('record_detail.col_sno')}</th>
+                  <th>{t('record_detail.col_survey_no')}</th>
+                  <th>{t('record_detail.col_parcel_uid')}</th>
+                  <th style={{ width: '80px', textAlign: 'center' }}>{t('record_detail.col_type')}</th>
+                  <th>{t('record_detail.col_land_use')}</th>
+                  <th style={{ width: '130px', textAlign: 'right' }}>{t('record_detail.col_area')}</th>
+                  <th style={{ width: '130px', textAlign: 'right' }}>{t('record_detail.col_revenue')}</th>
                 </tr>
               </thead>
               <tbody>
                 {rec.parcels.length === 0 ? (
-                  <tr><td colSpan={7} style={{ textAlign: 'center', padding: '20px', color: '#94a3b8' }}>कोई खसरा दर्ज नहीं है।</td></tr>
+                  <tr><td colSpan={7} style={{ textAlign: 'center', padding: '20px', color: '#94a3b8' }}>{t('record_detail.no_parcels')}</td></tr>
                 ) : (
                   rec.parcels.map((p, i) => (
                     <tr key={p.id || i}>
@@ -347,7 +350,7 @@ export default function RecordDetailPage() {
                               type="button"
                               onClick={() => navigate(`/gis?surveyNo=${encodeURIComponent(p.survey_number)}&recordId=${rec.id}`)}
                               className="no-print"
-                              title="इस खसरे को भू-नक्शा पर देखें"
+                              title={t('record_detail.parcel_map_title')}
                               style={{
                                 background: 'none',
                                 border: 'none',
@@ -394,7 +397,7 @@ export default function RecordDetailPage() {
                 <tfoot>
                   <tr style={{ background: '#f8fafc', fontWeight: 700 }}>
                     <td colSpan={5} style={{ textAlign: 'right', paddingRight: '16px', color: '#1e3a8a' }}>
-                      योग (Total Holdings & Demand):
+                      {t('record_detail.total_row')}
                     </td>
                     <td style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', color: '#1e3a8a', fontSize: '0.95rem' }}>
                       {totalArea.toFixed(4)} ha
@@ -421,10 +424,10 @@ export default function RecordDetailPage() {
         }}>
           <div>
             <p style={{ fontSize: '0.78rem', color: '#64748b', margin: 0 }}>
-              यह प्रपत्र राष्ट्रीय भू-अभिलेख डिजिटलीकरण प्रणाली (IDVRS) द्वारा प्रमाणित डिजिटल प्रतिलिपि है।
+              {t('record_detail.provenance_text')}
             </p>
             <p style={{ fontSize: '0.725rem', color: '#94a3b8', margin: '2px 0 0' }}>
-              सुरक्षा हैश / क्रिप्टोग्राफिक सत्यापन आईडी: SHA256-CLRM-{rec.clrm_no || rec.id}
+              {t('record_detail.hash_label')} SHA256-CLRM-{rec.clrm_no || rec.id}
             </p>
           </div>
 
@@ -440,10 +443,10 @@ export default function RecordDetailPage() {
               letterSpacing: '0.05em',
               textTransform: 'uppercase'
             }}>
-              ✓ प्रमाणित भू-अभिलेख
+              {t('record_detail.certified_seal')}
             </div>
             <p style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '4px' }}>
-              डिजिटाइज्ड एवं सत्यापित
+              {t('record_detail.digitized_verified')}
             </p>
           </div>
         </div>
