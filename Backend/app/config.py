@@ -7,6 +7,7 @@ from pydantic_settings import BaseSettings
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 class Settings(BaseSettings):
+    DATABASE_URL: str | None = None
     DB_HOST: str = "localhost"
     DB_PORT: int = 3306
     DB_USER: str = "root"
@@ -14,20 +15,29 @@ class Settings(BaseSettings):
     DB_NAME: str = "land_record_db"
     API_HOST: str = "127.0.0.1"
     API_PORT: int = 8000
-    CORS_ORIGINS: str = "http://localhost:5173,http://127.0.0.1:5173"
+    CORS_ORIGINS: str = "*,http://localhost:5173,http://127.0.0.1:5173,https://frontend-chi-gules-46.vercel.app"
 
     @property
     def database_url(self) -> str:
+        if self.DATABASE_URL:
+            url = self.DATABASE_URL.strip()
+            if url.startswith("mysql://"):
+                url = "mysql+pymysql://" + url[8:]
+            return url
         password = quote_plus(self.DB_PASSWORD)
         return f"mysql+pymysql://{self.DB_USER}:{password}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}?charset=utf8mb4"
 
     @property
     def server_database_url(self) -> str:
+        if self.DATABASE_URL:
+            return self.database_url
         password = quote_plus(self.DB_PASSWORD)
         return f"mysql+pymysql://{self.DB_USER}:{password}@{self.DB_HOST}:{self.DB_PORT}/?charset=utf8mb4"
 
     @property
     def cors_origins_list(self) -> list[str]:
+        if "*" in self.CORS_ORIGINS:
+            return ["*"]
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
 
     class Config:

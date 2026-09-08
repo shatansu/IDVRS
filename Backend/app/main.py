@@ -25,8 +25,11 @@ logger = logging.getLogger("app.main")
 async def lifespan(app: FastAPI):
     # Startup: Ensure database & tables exist
     logger.info("Starting up Land Record Digitization API...")
-    create_database_if_not_exists()
-    init_tables()
+    try:
+        create_database_if_not_exists()
+        init_tables()
+    except Exception as e:
+        logger.warning(f"Database auto-initialization skipped or failed on startup: {e}")
     yield
     # Shutdown
     logger.info("Shutting down Land Record Digitization API...")
