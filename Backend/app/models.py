@@ -35,7 +35,7 @@ class Document(Base):
     id = Column(Integer, primary_key=True, autoincrement=True, index=True)
     original_filename = Column(String(255), nullable=True)
     file_path = Column(String(500), nullable=True)
-    document_type = Column(String(50), nullable=True)  # 'bhu_adhikar_pustika', 'khatoni_b1', 'other'
+    document_type = Column(String(255), nullable=True)  # 'bhu_adhikar_pustika', 'khatoni_b1', 'other', or descriptive
     source_mode = Column(
         SQLEnum(SourceModeEnum, values_callable=lambda obj: [e.value for e in obj]),
         default=SourceModeEnum.digital_text,

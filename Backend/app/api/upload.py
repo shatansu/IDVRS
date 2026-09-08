@@ -7,9 +7,11 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Document, SourceModeEnum, ProcessingStatusEnum
+from app.pipeline.detector import detect_document_source
 from app.pipeline.extractor import extract_document
 from app.pipeline.field_extractor import extract_fields
 from app.pipeline.validator import validate_extraction
+from app.pipeline.gemini_vision_adapter import extract_handwritten_with_gemini, get_gemini_api_key
 from app.config import BASE_DIR
 
 logger = logging.getLogger("app.api.upload")
@@ -32,6 +34,11 @@ def infer_document_type(text: str) -> str:
         return "bhu_adhikar_pustika"
     if "खतौनी" in text or "प्रारूप-7" in text or "प्रारूप 7" in text or "बी-1" in text:
         return "khatoni_b1"
+    if any(k in text for k in [
+        "प्रतिलिपि", "सत्य प्रतिलिपि", "नामांतरण", "नामान्तरण", "पंजी",
+        "राजस्व", "तहसीलदार", "तिलतिप्ी", "तिलिपी", "प्रदर्श"
+    ]):
+        return "revenue_register"
     return "other"
 
 @router.post("/upload", status_code=status.HTTP_200_OK)
@@ -80,28 +87,78 @@ async def upload_document(
             f.write(contents)
         logger.info(f"Saved uploaded file to {saved_path} ({len(contents)} bytes)")
 
-        # Run extraction pipeline
-        try:
-            extraction_result = extract_document(str(saved_path))
-        except Exception as extract_err:
-            logger.error(f"Extraction failed for {saved_path}: {extract_err}")
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"फ़ाइल को पढ़ा या प्रोसेस नहीं किया जा सका (संभवतः दूषित या अव्यवहार्य प्रारूप)। / Could not parse or process the file (file may be corrupted or invalid): {str(extract_err)}"
-            )
+        # Step 1: Detect document source and classification
+        source_mode, page_count, classification = detect_document_source(str(saved_path))
+        logger.info(
+            f"Uploaded document {saved_path.name}: source_mode={source_mode}, "
+            f"page_count={page_count}, classification={classification}"
+        )
 
-        # Check for empty text extraction
-        extracted_text = extraction_result.get("full_text", "").strip()
-        if not extracted_text:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="दस्तावेज़ से कोई पठनीय पाठ नहीं मिला। कृपया सुनिश्चित करें कि दस्तावेज़ स्पष्ट है और रिक्त नहीं है। / No readable text could be extracted from this document. Please verify the document is legible and not blank."
-            )
+        gemini_structured = None
+        # Rule: Use Gemini ONLY for handwritten images and handwritten/scanned PDFs related to lands
+        # Printed digital PDFs (e.g. Form 4 Bhu-Adhikar Pustika, Form 7 Khatoni B-1) strictly use PyMuPDF
+        is_handwritten_candidate = (
+            ext != ".pdf" or classification in {"handwritten", "mixed"}
+        ) and source_mode != "digital_text"
 
-        doc_type = infer_document_type(extraction_result["full_text"])
+        if is_handwritten_candidate:
+            api_key = get_gemini_api_key()
+            if api_key:
+                try:
+                    logger.info(f"Invoking Gemini Vision for handwritten/image document: {saved_path.name}")
+                    gemini_structured = extract_handwritten_with_gemini(str(saved_path), api_key=api_key)
+                except Exception as g_err:
+                    logger.warning(
+                        f"Gemini Vision extraction encountered an issue: {g_err}. "
+                        "Falling back to local extraction pipeline."
+                    )
+            else:
+                logger.warning("No Gemini API key available. Falling back to local OCR pipeline.")
 
-        # Phase 3: Run field extraction (regex + rule-based)
-        structured_data = extract_fields(extraction_result["full_text"], doc_type)
+        if gemini_structured:
+            structured_data = gemini_structured
+            extracted_text = gemini_structured.get("full_text", "").strip()
+            if not extracted_text:
+                extracted_text = "Handwritten document scanned via Gemini Vision."
+            raw_doc_type = gemini_structured.get("extraction_meta", {}).get("document_type") or infer_document_type(extracted_text)
+            doc_type = str(raw_doc_type)[:250] if raw_doc_type else "other"
+            avg_conf = gemini_structured.get("extraction_meta", {}).get("average_confidence", 0.94)
+
+            extraction_result = {
+                "source_mode": "ocr",
+                "classification": classification,
+                "engine_used": "gemini_vision",
+                "page_count": page_count,
+                "character_count": len(extracted_text),
+                "average_confidence": avg_conf,
+                "full_text": extracted_text,
+                "page_texts": [{"page_number": 1, "character_count": len(extracted_text), "confidence": avg_conf, "text": extracted_text}],
+                "evidence": []
+            }
+        else:
+            # Printed documents (digital PDFs / printed scans) or fallback mode:
+            # Strictly use existing PyMuPDF / Tesseract models and rule-based extraction
+            try:
+                extraction_result = extract_document(str(saved_path))
+            except Exception as extract_err:
+                logger.error(f"Extraction failed for {saved_path}: {extract_err}")
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"फ़ाइल को पढ़ा या प्रोसेस नहीं किया जा सका (संभवतः दूषित या अव्यवहार्य प्रारूप)। / Could not parse or process the file (file may be corrupted or invalid): {str(extract_err)}"
+                )
+
+            # Check for empty text extraction
+            extracted_text = extraction_result.get("full_text", "").strip()
+            if not extracted_text:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="दस्तावेज़ से कोई पठनीय पाठ नहीं मिला। कृपया सुनिश्चित करें कि दस्तावेज़ स्पष्ट है और रिक्त नहीं है। / No readable text could be extracted from this document. Please verify the document is legible and not blank."
+                )
+
+            doc_type = infer_document_type(extraction_result["full_text"])
+
+            # Phase 3: Run field extraction (regex + rule-based)
+            structured_data = extract_fields(extraction_result["full_text"], doc_type)
 
         # Phase 4: Run validation rules (including DB duplicate check)
         validation_result = validate_extraction(structured_data, db)

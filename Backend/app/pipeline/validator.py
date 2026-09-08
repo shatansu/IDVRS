@@ -44,8 +44,8 @@ SURVEY_NUMBER_RE = re.compile(
     r"^\d+(?:/\d+)?\s*(?:\([SP]\))?$"
 )
 
-# Fasli year pattern: "YYYY-YYYY" where second year = first + 1
-FASLI_YEAR_RE = re.compile(r"^(\d{4})-(\d{4})$")
+# Fasli year pattern: "YYYY-YYYY" or "YYYY-YY"
+FASLI_YEAR_RE = re.compile(r"^(\d{4})-(\d{2,4})$")
 
 # Share fraction patterns (e.g., "1/3", "2/4", "0.5", "50%")
 SHARE_FRACTION_RE = re.compile(r"^(\d+)\s*/\s*(\d+)$")
@@ -202,7 +202,8 @@ def _check_date_sanity(khata: dict) -> tuple[list, list]:
         m = FASLI_YEAR_RE.match(str(fasli_raw).strip())
         if m:
             start_year = int(m.group(1))
-            end_year   = int(m.group(2))
+            raw_end    = m.group(2)
+            end_year   = int(raw_end) if len(raw_end) == 4 else int(str(start_year)[:2] + raw_end)
 
             # Second year must be start + 1
             if end_year != start_year + 1:

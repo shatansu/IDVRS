@@ -100,7 +100,7 @@ export default function UploadPage() {
 
       const res = await axios.post('/api/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
-        timeout: 120000,
+        timeout: 300000,
       });
 
       const data = res.data;

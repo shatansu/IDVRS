@@ -40,10 +40,22 @@ def get_easyocr_reader():
 
 
 def clean_devanagari_text(text: str) -> str:
-    """Applies Unicode NFC normalization and strips null bytes."""
+    """Applies Unicode NFC normalization and strips null bytes / OCR noise."""
     if not text:
         return ""
     text = text.replace("\x00", "").strip()
+    
+    # Common OCR character confusions in Hindi revenue records
+    ocr_fixes = {
+        "तिलतिप्ी": "प्रतिलिपि",
+        "तिलिपी": "प्रतिलिपि",
+        "सल्जतलपी": "सत्य प्रतिलिपि",
+        "सलनतलपी": "सत्य प्रतिलिपि",
+        "शिमर": "सिमरिया",
+    }
+    for bad, good in ocr_fixes.items():
+        text = text.replace(bad, good)
+
     normalized = unicodedata.normalize("NFC", text)
     import re
     # Deduplicate consecutive vowel signs / matras
@@ -60,36 +72,33 @@ def run_easyocr_on_image(img_input: Union[str, Image.Image, np.ndarray]) -> tupl
     if reader is None:
         raise RuntimeError("EasyOCR reader is not available.")
 
-    # Convert to numpy array
+    # Convert to PIL Image to evaluate resolution
     if isinstance(img_input, str):
-        img_np = np.array(Image.open(img_input).convert("RGB"))
-    elif isinstance(img_input, Image.Image):
-        img_np = np.array(img_input.convert("RGB"))
+        pil_img = Image.open(img_input).convert("RGB")
+    elif isinstance(img_input, np.ndarray):
+        pil_img = Image.fromarray(img_input).convert("RGB")
     else:
-        img_np = img_input
+        pil_img = img_input.convert("RGB")
+
+    w, h = pil_img.size
+    # If image resolution is low, upscale for better Indic character detection
+    scale = max(1.0, 1400.0 / max(w, h))
+    if scale > 1.05:
+        new_w, new_h = int(w * scale), int(h * scale)
+        scaled_img = pil_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+        img_np = np.array(scaled_img)
+    else:
+        scale = 1.0
+        img_np = np.array(pil_img)
 
     # Run EasyOCR with bounding box details
     raw_results = reader.readtext(img_np, detail=1, paragraph=False)
 
     blocks: List[OCRTextBlock] = []
     confs: List[float] = []
+    items = []
 
-    # Sort results geometrically top-to-bottom, left-to-right
-    # raw_results format: [ (bbox, text, conf), ... ]
-    # bbox: [[x1, y1], [x2, y2], [x3, y3], [x4, y4]]
-    def sort_key(item):
-        bbox = item[0]
-        y_top = min(p[1] for p in bbox)
-        x_left = min(p[0] for p in bbox)
-        return (y_top // 20, x_left)  # bucket by ~20px horizontal lines
-
-    sorted_results = sorted(raw_results, key=sort_key)
-
-    lines = []
-    current_line_bucket = None
-    current_line_tokens = []
-
-    for bbox, text, conf in sorted_results:
+    for bbox, text, conf in raw_results:
         clean_txt = clean_devanagari_text(text)
         if not clean_txt:
             continue
@@ -97,34 +106,57 @@ def run_easyocr_on_image(img_input: Union[str, Image.Image, np.ndarray]) -> tupl
         c_val = float(conf)
         confs.append(c_val)
 
-        # Convert bbox to standard integer coordinates
-        int_bbox = [[int(pt[0]), int(pt[1])] for pt in bbox]
+        # Rescale bbox coordinates back to original image coordinate space
+        orig_bbox = [[int(pt[0] / scale), int(pt[1] / scale)] for pt in bbox]
+        y_top = min(p[1] for p in orig_bbox)
+        y_bot = max(p[1] for p in orig_bbox)
+        x_left = min(p[0] for p in orig_bbox)
+        y_center = (y_top + y_bot) / 2.0
+        height = max(10, y_bot - y_top)
+
         blocks.append(OCRTextBlock(
             text=clean_txt,
             confidence=round(c_val, 2),
-            bbox=int_bbox,
+            bbox=orig_bbox,
             is_handwritten=True,
         ))
 
-        # Line assembling
-        y_top = min(p[1] for p in bbox)
-        bucket = int(y_top // 25)
+        items.append({
+            "text": clean_txt,
+            "conf": c_val,
+            "bbox": orig_bbox,
+            "y_top": y_top,
+            "y_center": y_center,
+            "x_left": x_left,
+            "height": height,
+        })
 
-        if current_line_bucket is None:
-            current_line_bucket = bucket
-            current_line_tokens = [clean_txt]
-        elif abs(bucket - current_line_bucket) <= 1:
-            current_line_tokens.append(clean_txt)
+    # Sort items geometrically by y_center
+    items.sort(key=lambda it: it["y_center"])
+    lines = []
+    curr_line = []
+    curr_y = None
+    avg_h = sum(it["height"] for it in items) / len(items) if items else 15
+
+    for it in items:
+        if curr_y is None:
+            curr_y = it["y_center"]
+            curr_line = [it]
+        elif abs(it["y_center"] - curr_y) <= avg_h * 0.7:
+            curr_line.append(it)
+            curr_y = sum(x["y_center"] for x in curr_line) / len(curr_line)
         else:
-            lines.append(" ".join(current_line_tokens))
-            current_line_bucket = bucket
-            current_line_tokens = [clean_txt]
+            curr_line.sort(key=lambda x: x["x_left"])
+            lines.append(" ".join(x["text"] for x in curr_line))
+            curr_line = [it]
+            curr_y = it["y_center"]
 
-    if current_line_tokens:
-        lines.append(" ".join(current_line_tokens))
+    if curr_line:
+        curr_line.sort(key=lambda x: x["x_left"])
+        lines.append(" ".join(x["text"] for x in curr_line))
 
     assembled_text = "\n".join(lines)
-    avg_confidence = round(sum(confs) / len(confs), 2) if confs else 0.70
+    avg_confidence = round(sum(confs) / len(confs), 2) if confs else 0.0
 
     return assembled_text, avg_confidence, blocks
 

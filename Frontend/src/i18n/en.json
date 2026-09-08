@@ -253,7 +253,7 @@
     "col_revenue": "Land Revenue (₹)",
     "no_parcels": "No survey parcels recorded.",
     "total_row": "Total (Holdings & Demand):",
-    "provenance_text": "This document is a certified digital copy produced by the National Land Record Digitization System (IDVRS).",
+    "provenance_text": "This document is a certified digital copy produced by the National Land Record Digitization System (BHU-SETU-AI).",
     "hash_label": "Security Hash / Cryptographic Verification ID:",
     "certified_seal": "✓ Certified Land Record",
     "digitized_verified": "Digitized & Verified",
@@ -332,7 +332,7 @@
     "provenance_status": "Data Status:",
     "provenance_auth": "Authenticity:",
     "dilrmp_title": "DILRMP Cadastral Integration Principles",
-    "dilrmp_desc": "Land records (text) and land maps (geometry) are separate layers. The IDVRS GIS engine links both using a 5-point key. In the future, this can be directly plugged into the state's Bhu-Naksha service or a PostGIS server.",
+    "dilrmp_desc": "Land records (text) and land maps (geometry) are separate layers. The BHU-SETU-AI GIS engine links both using a 5-point key. In the future, this can be directly plugged into the state's Bhu-Naksha service or a PostGIS server.",
     "holding_fail": "Failed to load full holding details.",
     "holding_badge": "Khata No.:"
   },

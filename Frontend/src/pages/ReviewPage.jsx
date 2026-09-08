@@ -514,8 +514,19 @@ export default function ReviewPage() {
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Avg AI Accuracy:</span>
-              <span className="conf-pill high" style={{ fontSize: '0.8rem' }}>
-                {extraction_meta?.average_confidence ? `${Math.round(extraction_meta.average_confidence * 100)}%` : '94%'}
+              <span
+                className={`conf-pill ${
+                  (extraction_meta?.average_confidence ?? 0) >= 0.8
+                    ? 'high'
+                    : (extraction_meta?.average_confidence ?? 0) >= 0.6
+                    ? 'med'
+                    : 'low'
+                }`}
+                style={{ fontSize: '0.8rem' }}
+              >
+                {extraction_meta?.average_confidence != null
+                  ? `${Math.round(extraction_meta.average_confidence * 100)}%`
+                  : '0%'}
               </span>
             </div>
 

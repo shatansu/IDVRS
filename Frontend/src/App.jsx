@@ -140,49 +140,10 @@ function GovLayout({ children }) {
           </span>
           <span style={{ color: '#475569' }}>•</span>
           <span>{t('nav.ministry')}</span>
-          <span style={{ color: '#475569' }}>•</span>
-          <span style={{
-            background: 'rgba(255, 153, 51, 0.15)',
-            color: '#ffb066',
-            padding: '1px 7px',
-            borderRadius: '4px',
-            fontWeight: 600
-          }}>
-            SIH 26018 Prototype
-          </span>
         </div>
 
-        {/* Live System Connectivity Micro-Indicator */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {systemStatus.online ? (
-            <span style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              color: '#34d399',
-              fontSize: '0.725rem',
-              fontWeight: 500
-            }}>
-              <span style={{
-                width: '7px',
-                height: '7px',
-                borderRadius: '50%',
-                background: '#10b981',
-                boxShadow: '0 0 8px rgba(16, 185, 129, 0.7)'
-              }} className="pulse-active" />
-              {t('status.online')} ({systemStatus.latency}ms)
-            </span>
-          ) : (
-            <span style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              color: '#f87171',
-              fontSize: '0.725rem'
-            }}>
-              <AlertCircle size={12} /> {t('status.reconnecting')}
-            </span>
-          )}
+        {/* Live System Connectivity Micro-Indicator Hidden as requested */}
+        <div style={{ display: 'none' }}>
         </div>
       </div>
 
@@ -224,7 +185,7 @@ function GovLayout({ children }) {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ fontSize: '1.2rem', fontWeight: 800, color: '#ffffff', letterSpacing: '-0.01em' }}>
-                  IDVRS
+                  BHU-SETU-AI
                 </span>
                 <span style={{
                   fontSize: '0.7rem',
@@ -313,10 +274,10 @@ function GovLayout({ children }) {
         }}>
           <div>
             <p style={{ color: '#94a3b8', fontWeight: 600 }}>
-              National Land Record Digitization & Validation System (IDVRS)
+              National Land Record Digitization & Validation System (BHU-SETU-AI)
             </p>
             <p style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '4px' }}>
-              Built for Smart India Hackathon (SIH 26018) • Ministry of Rural Development, Department of Land Resources (DoLR)
+              Ministry of Rural Development, Department of Land Resources (DoLR)
             </p>
           </div>
           <div style={{ display: 'flex', gap: '20px', fontSize: '0.75rem' }}>
