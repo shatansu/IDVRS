@@ -5,11 +5,18 @@ from app.config import settings
 
 logger = logging.getLogger("app.database")
 
+# Determine connect_args for cloud databases (e.g. TiDB Cloud requires SSL)
+connect_args = {}
+db_url_lower = settings.database_url.lower()
+if "tidbcloud" in db_url_lower or "ssl" in db_url_lower:
+    connect_args["ssl"] = {"ssl_mode": "REQUIRED"}
+
 # SQLAlchemy Engine for the target database
 engine = create_engine(
     settings.database_url,
+    connect_args=connect_args,
     pool_pre_ping=True,
-    pool_recycle=3600,
+    pool_recycle=300,
     echo=False
 )
 
