@@ -311,7 +311,7 @@ def _format_gemini_to_idvrs_schema(data: Dict[str, Any]) -> Dict[str, Any]:
         "average_confidence": avg_conf,
         "missing_required_fields": missing_required,
         "needs_review": len(missing_required) > 0 or avg_conf < 0.70,
-        "engine_used": "gemini_vision",
+        "engine_used": "bhu_setu_neural_vision",
     }
 
     full_text = data.get("full_text_transcript") or ""

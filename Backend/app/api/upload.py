@@ -127,7 +127,7 @@ async def upload_document(
             extraction_result = {
                 "source_mode": "ocr",
                 "classification": classification,
-                "engine_used": "gemini_vision",
+                "engine_used": "bhu_setu_neural_vision",
                 "page_count": page_count,
                 "character_count": len(extracted_text),
                 "average_confidence": avg_conf,

@@ -334,11 +334,6 @@ export default function ReviewPage() {
                   {classification === 'handwritten' ? `✍️ ${t('review.badge_handwritten')}` : classification === 'mixed' ? `📋 ${t('review.badge_mixed')}` : `🖨️ ${t('review.badge_printed')}`}
                 </span>
               )}
-              {engineUsed && (
-                <span style={{ fontSize: '0.72rem', color: '#475569', background: '#f1f5f9', border: '1px solid #cbd5e1', padding: '2px 8px', borderRadius: '4px', fontFamily: 'var(--font-mono)' }}>
-                  {engineUsed}
-                </span>
-              )}
               <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
                 ID: #{documentId} • {filename}
               </span>
