@@ -14,6 +14,8 @@ from app.pipeline.validator import validate_extraction
 from app.pipeline.gemini_vision_adapter import extract_handwritten_with_gemini, get_gemini_api_key
 from app.config import BASE_DIR
 
+from typing import List
+
 logger = logging.getLogger("app.api.upload")
 
 router = APIRouter(prefix="/api", tags=["Document Processing"])
@@ -26,33 +28,34 @@ ALLOWED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".webp"}
 
 def infer_document_type(text: str) -> str:
     """
-    Identifies document type based on key heading phrases in Hindi.
+    Identifies document type based on key heading phrases in Hindi and English.
     """
     if not text:
         return "other"
-    if "भू-अधिकार" in text or "अधिकार पुस्तिका" in text or "प्रारूप-4" in text or "प्रारूप 4" in text:
+    lower_text = text.lower()
+    if (
+        "भू-अधिकार" in text or "अधिकार पुस्तिका" in text or "प्रारूप-4" in text or "प्रारूप 4" in text
+        or "form four" in lower_text or "form 4" in lower_text or "land rights" in lower_text
+    ):
         return "bhu_adhikar_pustika"
-    if "खतौनी" in text or "प्रारूप-7" in text or "प्रारूप 7" in text or "बी-1" in text:
+    if (
+        "खतौनी" in text or "प्रारूप-7" in text or "प्रारूप 7" in text or "बी-1" in text
+        or "khatoni" in lower_text or "form seven" in lower_text or "form 7" in lower_text or "b-1" in lower_text
+    ):
         return "khatoni_b1"
     if any(k in text for k in [
         "प्रतिलिपि", "सत्य प्रतिलिपि", "नामांतरण", "नामान्तरण", "पंजी",
         "राजस्व", "तहसीलदार", "तिलतिप्ी", "तिलिपी", "प्रदर्श"
-    ]):
+    ]) or any(k in lower_text for k in ["certified copy", "revenue register", "mutation", "namantaran", "land record"]):
         return "revenue_register"
     return "other"
 
-@router.post("/upload", status_code=status.HTTP_200_OK)
-async def upload_document(
-    file: UploadFile = File(...),
-    db: Session = Depends(get_db)
-):
+
+def _process_single_file_content(contents: bytes, filename: str, db: Session) -> dict:
     """
-    Uploads a land record document (PDF/image), detects whether it is a
-    digital-native PDF or scanned file, runs text extraction, field extraction
-    (Phase 3), validation rules (Phase 4), saves the document record to MySQL,
-    and returns the full structured result including validation warnings.
+    Core pipeline worker for processing a single land record file's byte contents.
+    Validates, extracts via OCR/Gemini, parses fields, runs validation rules, and saves to MySQL.
     """
-    filename = file.filename or "uploaded_document"
     ext = Path(filename).suffix.lower()
 
     if ext not in ALLOWED_EXTENSIONS:
@@ -61,32 +64,27 @@ async def upload_document(
             detail=f"अमान्य फ़ाइल प्रकार '{ext}'। केवल PDF, JPG, PNG, TIFF, BMP, WEBP समर्थित हैं। / Unsupported file type '{ext}'. Allowed extensions: {', '.join(sorted(ALLOWED_EXTENSIONS))}"
         )
 
+    if len(contents) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="अपलोड की गई फ़ाइल खाली है (0 बाइट्स)। कृपया एक वैध भूमि रिकॉर्ड दस्तावेज़ अपलोड करें। / The uploaded file is empty (0 bytes). Please upload a valid document."
+        )
+
+    if len(contents) > 50 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="फ़ाइल का आकार 50MB की अधिकतम सीमा से अधिक है। / File size exceeds the maximum limit of 50MB."
+        )
+
     # Generate unique storage filename
     unique_filename = f"{uuid.uuid4().hex[:10]}_{filename}"
     saved_path = UPLOADS_DIR / unique_filename
 
+    with open(saved_path, "wb") as f:
+        f.write(contents)
+    logger.info(f"Saved uploaded file to {saved_path} ({len(contents)} bytes)")
+
     try:
-        # Save file to disk
-        contents = await file.read()
-
-        # Check for empty file (0 bytes)
-        if len(contents) == 0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="अपलोड की गई फ़ाइल खाली है (0 बाइट्स)। कृपया एक वैध भूमि रिकॉर्ड दस्तावेज़ अपलोड करें। / The uploaded file is empty (0 bytes). Please upload a valid document."
-            )
-
-        # Check for size limit (50 MB)
-        if len(contents) > 50 * 1024 * 1024:
-            raise HTTPException(
-                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                detail="फ़ाइल का आकार 50MB की अधिकतम सीमा से अधिक है। / File size exceeds the maximum limit of 50MB."
-            )
-
-        with open(saved_path, "wb") as f:
-            f.write(contents)
-        logger.info(f"Saved uploaded file to {saved_path} ({len(contents)} bytes)")
-
         # Step 1: Detect document source and classification
         source_mode, page_count, classification = detect_document_source(str(saved_path))
         logger.info(
@@ -136,8 +134,7 @@ async def upload_document(
                 "evidence": []
             }
         else:
-            # Printed documents (digital PDFs / printed scans) or fallback mode:
-            # Strictly use existing PyMuPDF / Tesseract models and rule-based extraction
+            # Printed documents (digital PDFs / printed scans) or fallback mode
             try:
                 extraction_result = extract_document(str(saved_path))
             except Exception as extract_err:
@@ -147,7 +144,6 @@ async def upload_document(
                     detail=f"फ़ाइल को पढ़ा या प्रोसेस नहीं किया जा सका (संभवतः दूषित या अव्यवहार्य प्रारूप)। / Could not parse or process the file (file may be corrupted or invalid): {str(extract_err)}"
                 )
 
-            # Check for empty text extraction
             extracted_text = extraction_result.get("full_text", "").strip()
             if not extracted_text:
                 raise HTTPException(
@@ -157,12 +153,33 @@ async def upload_document(
 
             doc_type = infer_document_type(extraction_result["full_text"])
 
-            # Phase 3: Run field extraction (regex + rule-based)
+            # Detect language: check if document text is predominantly English
+            devanagari_chars = sum(1 for ch in extracted_text if '\u0900' <= ch <= '\u097F')
+            latin_chars = sum(1 for ch in extracted_text if ('A' <= ch <= 'Z') or ('a' <= ch <= 'z'))
+            is_english_doc = latin_chars > 80 and devanagari_chars < 50
+
+            # Phase 3: Run local field extraction (regex + rule-based)
             structured_data = extract_fields(extraction_result["full_text"], doc_type)
+
+            # If English land record or if local rule-based extraction found 0 owners,
+            # elevate to Neural Vision AI to extract all owners, parcels, and land record entities
+            api_key = get_gemini_api_key()
+            if api_key and (is_english_doc or len(structured_data.get("owners", [])) == 0):
+                try:
+                    logger.info(f"Invoking Neural Vision AI for English / complex document: {saved_path.name}")
+                    ai_structured = extract_handwritten_with_gemini(str(saved_path), api_key=api_key)
+                    if ai_structured and len(ai_structured.get("owners", [])) > 0:
+                        structured_data = ai_structured
+                        raw_doc_type = ai_structured.get("extraction_meta", {}).get("document_type") or doc_type
+                        doc_type = str(raw_doc_type)[:250] if raw_doc_type else doc_type
+                        extraction_result["engine_used"] = "bhu_setu_neural_vision"
+                        extraction_result["average_confidence"] = ai_structured.get("extraction_meta", {}).get("average_confidence", 0.93)
+                        logger.info(f"Successfully extracted {len(structured_data.get('owners', []))} owners and {len(structured_data.get('parcels', []))} parcels via Neural Vision AI")
+                except Exception as ai_err:
+                    logger.warning(f"Neural Vision AI extraction fallback failed: {ai_err}")
 
         # Phase 4: Run validation rules (including DB duplicate check)
         validation_result = validate_extraction(structured_data, db)
-        # Attach validation to structured_data so it travels together
         structured_data["validation"] = validation_result
 
         # Persist document metadata and raw extracted text to MySQL
@@ -202,16 +219,13 @@ async def upload_document(
             "evidence": extraction_result.get("evidence", []),
             "file_path": str(saved_path),
             "processing_status": doc_record.processing_status.value,
-            # Phase 3+4: structured extraction + validation result
             "structured_data": structured_data,
         }
 
     except HTTPException:
-        # Re-raise HTTP exceptions directly so proper status code & message reach the client
         raise
     except Exception as exc:
         logger.error(f"Error processing uploaded document: {exc}", exc_info=True)
-        # Attempt to record failed state in database if possible
         try:
             failed_doc = Document(
                 original_filename=filename,
@@ -230,3 +244,61 @@ async def upload_document(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"दस्तावेज़ प्रसंस्करण में तकनीकी त्रुटि: {str(exc)} / Processing error: {str(exc)}"
         )
+
+
+@router.post("/upload", status_code=status.HTTP_200_OK)
+async def upload_document(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Uploads a single land record document (PDF/image), detects whether it is a
+    digital-native PDF or scanned file, runs text extraction, field extraction
+    (Phase 3), validation rules (Phase 4), saves the document record to MySQL,
+    and returns the full structured result including validation warnings.
+    """
+    filename = file.filename or "uploaded_document"
+    contents = await file.read()
+    return _process_single_file_content(contents, filename, db)
+
+
+@router.post("/upload/batch", status_code=status.HTTP_200_OK)
+async def upload_batch_documents(
+    files: List[UploadFile] = File(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Accepts multiple land record files in a single batch, processes each through the pipeline,
+    and returns an array of structured results along with success/failure statistics.
+    """
+    if not files:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="कोई फ़ाइल प्राप्त नहीं हुई। कृपया कम से कम एक दस्तावेज़ चुनें। / No files uploaded."
+        )
+
+    results = []
+    errors = []
+
+    for f in files:
+        fname = f.filename or "uploaded_document"
+        try:
+            contents = await f.read()
+            res = _process_single_file_content(contents, fname, db)
+            results.append(res)
+        except Exception as exc:
+            err_msg = exc.detail if isinstance(exc, HTTPException) else str(exc)
+            logger.warning(f"Batch item failed for '{fname}': {err_msg}")
+            errors.append({
+                "filename": fname,
+                "error": err_msg
+            })
+
+    return {
+        "total": len(files),
+        "successful": len(results),
+        "failed": len(errors),
+        "results": results,
+        "errors": errors,
+    }
+

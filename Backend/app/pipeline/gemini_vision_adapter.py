@@ -11,6 +11,7 @@ from PIL import Image
 from dotenv import load_dotenv
 
 from app.pipeline.ocr_types import OCRResult, OCRTextBlock
+from app.pipeline.field_extractor import compute_field_confidence
 
 logger = logging.getLogger("app.pipeline.gemini_vision")
 
@@ -220,24 +221,25 @@ def extract_handwritten_with_gemini(
 def _format_gemini_to_idvrs_schema(data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Transforms Gemini JSON response into IDVRS standard field/confidence schema.
-    No hardcoded defaults are used - fields accurately reflect the extracted document.
+    Applies dynamic field validation and token-based confidence scoring.
     """
-    def _wrap(val: Any, conf: float = 0.94) -> Dict[str, Any]:
+    def _wrap(val: Any, field_name: str, match_type: str = "labeled") -> Dict[str, Any]:
         if val is None or str(val).strip().lower() in ("", "null", "none"):
             return {"value": None, "confidence": 0.0}
+        conf = compute_field_confidence(field_name, val, match_type)
         return {"value": val, "confidence": round(conf, 2)}
 
     # Khata fields
     khata = {
-        "clrm_no": _wrap(data.get("clrm_no"), 0.92),
-        "village": _wrap(data.get("village"), 0.95),
-        "tehsil": _wrap(data.get("tehsil"), 0.95),
-        "district": _wrap(data.get("district"), 0.95),
-        "khata_number": _wrap(data.get("khata_number"), 0.94),
-        "fasli_year": _wrap(data.get("fasli_year"), 0.92),
-        "patwari_halka_no": _wrap(data.get("patwari_halka_no"), 0.90),
-        "state": _wrap(data.get("state"), 0.95),
-        "document_type": _wrap(data.get("document_type") or "Handwritten Land Record", 0.95),
+        "clrm_no": _wrap(data.get("clrm_no"), "clrm_no", "labeled"),
+        "village": _wrap(data.get("village"), "village", "labeled"),
+        "tehsil": _wrap(data.get("tehsil"), "tehsil", "labeled"),
+        "district": _wrap(data.get("district"), "district", "labeled"),
+        "khata_number": _wrap(data.get("khata_number"), "khata_number", "labeled"),
+        "fasli_year": _wrap(data.get("fasli_year"), "fasli_year", "labeled"),
+        "patwari_halka_no": _wrap(data.get("patwari_halka_no"), "patwari_halka_no", "labeled"),
+        "state": _wrap(data.get("state"), "state", "labeled"),
+        "document_type": _wrap(data.get("document_type") or "Handwritten Land Record", "document_type", "labeled"),
     }
 
     # Owners
@@ -251,11 +253,11 @@ def _format_gemini_to_idvrs_schema(data: Dict[str, Any]) -> Dict[str, Any]:
             if not name or str(name).strip().lower() in ("null", "none"):
                 continue
             owners.append({
-                "owner_name": _wrap(name, 0.94),
-                "parent_or_spouse_name": _wrap(o.get("parent_or_spouse_name"), 0.92),
-                "address": _wrap(o.get("address"), 0.90),
-                "share_fraction": _wrap(o.get("share_fraction"), 0.92),
-                "ownership_status": _wrap(o.get("ownership_status"), 0.90),
+                "owner_name": _wrap(name, "owner_name", "row_parsed"),
+                "parent_or_spouse_name": _wrap(o.get("parent_or_spouse_name"), "parent_or_spouse_name", "row_parsed"),
+                "address": _wrap(o.get("address"), "address", "row_parsed"),
+                "share_fraction": _wrap(o.get("share_fraction"), "share_fraction", "row_parsed"),
+                "ownership_status": _wrap(o.get("ownership_status"), "ownership_status", "row_parsed"),
             })
 
     # Parcels
@@ -283,11 +285,11 @@ def _format_gemini_to_idvrs_schema(data: Dict[str, Any]) -> Dict[str, Any]:
 
             parcels.append({
                 "parcel_unique_id": {"value": None, "confidence": 0.0},
-                "survey_number": _wrap(str(s_num), 0.94),
+                "survey_number": _wrap(str(s_num), "survey_number", "row_parsed"),
                 "land_use_flag": {"value": None, "confidence": 0.0},
-                "area_hectare": _wrap(area_float, 0.94),
-                "land_use": _wrap(p.get("land_use"), 0.90),
-                "land_revenue_rs": _wrap(rev_float, 0.92),
+                "area_hectare": _wrap(area_float, "area_hectare", "row_parsed"),
+                "land_use": _wrap(p.get("land_use"), "land_use", "row_parsed"),
+                "land_revenue_rs": _wrap(rev_float, "land_revenue_rs", "row_parsed"),
             })
 
     # Confidence calculation over data fields

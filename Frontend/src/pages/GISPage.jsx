@@ -44,6 +44,54 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
+/* ── Multi-Layer Base Map Providers ──────────────────────── */
+const MAP_LAYERS = {
+  google_hybrid: {
+    id: 'google_hybrid',
+    labelKey: 'gis.layer_google_hybrid',
+    defaultLabel: 'Google Satellite',
+    icon: '🛰️',
+    url: 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+    attribution: 'Google Satellite & Roads',
+    subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+    maxZoom: 21,
+    isSatellite: true,
+  },
+  google_streets: {
+    id: 'google_streets',
+    labelKey: 'gis.layer_google_streets',
+    defaultLabel: 'Google Roads',
+    icon: '🗺️',
+    url: 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+    attribution: 'Google Maps',
+    subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+    maxZoom: 21,
+    isSatellite: false,
+  },
+  esri_satellite: {
+    id: 'esri_satellite',
+    labelKey: 'gis.layer_esri_satellite',
+    defaultLabel: 'Bhuvan / Esri GIS',
+    icon: '🌐',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Esri & ISRO Bhuvan Survey',
+    subdomains: [],
+    maxZoom: 19,
+    isSatellite: true,
+  },
+  osm: {
+    id: 'osm',
+    labelKey: 'gis.layer_osm',
+    defaultLabel: 'OpenStreetMap',
+    icon: '📄',
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: 'OpenStreetMap contributors',
+    subdomains: ['a', 'b', 'c'],
+    maxZoom: 19,
+    isSatellite: false,
+  },
+};
+
 /* ── Default coordinates for Simariya, Panna (MP) ──────────── */
 const SIMARIYA_CENTER = [24.3228, 79.9830];
 const DEFAULT_ZOOM = 16;
@@ -52,6 +100,9 @@ export default function GISPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { t } = useTranslation();
+
+  /* ── Map Base Layer State ───────────────────────────────── */
+  const [activeLayer, setActiveLayer] = useState('google_hybrid');
 
   /* ── Core Data State ────────────────────────────────────── */
   const [features, setFeatures] = useState([]);
@@ -262,17 +313,39 @@ export default function GISPage() {
     const isSelected  = selectedParcel && selectedParcel.properties.parcel_id === p.parcel_id;
     const isInHolding = entireHolding && entireHolding.parcels.some(hp => hp.properties.parcel_id === p.parcel_id);
     const isMatched   = p.match_status === 'MATCHED';
+    const isSat       = MAP_LAYERS[activeLayer]?.isSatellite;
 
     if (isSelected) {
-      return { color: '#f59e0b', weight: 3.5, fillColor: '#fbbf24', fillOpacity: 0.55 };
+      return {
+        color: '#f59e0b',
+        weight: 3.5,
+        fillColor: '#fbbf24',
+        fillOpacity: isSat ? 0.60 : 0.55
+      };
     }
     if (isInHolding) {
-      return { color: '#059669', weight: 2.5, fillColor: '#10b981', fillOpacity: 0.40 };
+      return {
+        color: isSat ? '#34d399' : '#059669',
+        weight: 3,
+        fillColor: '#10b981',
+        fillOpacity: isSat ? 0.50 : 0.40
+      };
     }
     if (!isMatched) {
-      return { color: '#64748b', weight: 1.5, fillColor: '#94a3b8', fillOpacity: 0.15, dashArray: '4, 4' };
+      return {
+        color: isSat ? '#e2e8f0' : '#64748b',
+        weight: 1.5,
+        fillColor: isSat ? '#cbd5e1' : '#94a3b8',
+        fillOpacity: 0.20,
+        dashArray: '4, 4'
+      };
     }
-    return { color: '#1e3a8a', weight: 1.5, fillColor: '#3b82f6', fillOpacity: 0.22 };
+    return {
+      color: isSat ? '#93c5fd' : '#1e3a8a',
+      weight: isSat ? 2 : 1.5,
+      fillColor: '#3b82f6',
+      fillOpacity: isSat ? 0.35 : 0.22
+    };
   };
 
   /* ── 8. Feature Interactions (tooltip, click, hover) ───────
@@ -555,7 +628,47 @@ export default function GISPage() {
           </div>
 
           {/* Leaflet Map Container */}
-          <div style={{ height: '580px', width: '100%', position: 'relative', background: '#e2e8f0' }}>
+          <div style={{ height: '580px', width: '100%', position: 'relative', background: '#0f172a' }}>
+            {/* Multi-Layer Switcher Toolbar */}
+            <div style={{
+              position: 'absolute', top: '12px', right: '12px', zIndex: 1000,
+              display: 'flex', alignItems: 'center', background: 'rgba(255, 255, 255, 0.95)',
+              backdropFilter: 'blur(8px)', padding: '3px', borderRadius: '8px',
+              boxShadow: '0 4px 14px rgba(0,0,0,0.22)', border: '1px solid #cbd5e1', gap: '3px'
+            }}>
+              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#475569', padding: '0 6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Layers size={13} color="#1e3a8a" /> {t('gis.base_layer', 'Base Layer:')}
+              </span>
+              {Object.values(MAP_LAYERS).map(layer => {
+                const isActive = activeLayer === layer.id;
+                return (
+                  <button
+                    key={layer.id}
+                    onClick={() => setActiveLayer(layer.id)}
+                    type="button"
+                    style={{
+                      padding: '4px 8px',
+                      fontSize: '0.74rem',
+                      fontWeight: isActive ? 700 : 500,
+                      color: isActive ? '#ffffff' : '#1e293b',
+                      background: isActive ? '#1e3a8a' : 'transparent',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      transition: 'all 0.15s ease'
+                    }}
+                    title={layer.attribution}
+                  >
+                    <span>{layer.icon}</span>
+                    <span>{t(layer.labelKey, layer.defaultLabel)}</span>
+                  </button>
+                );
+              })}
+            </div>
+
             {loading && (
               <div style={{
                 position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.7)',
@@ -584,15 +697,18 @@ export default function GISPage() {
               scrollWheelZoom={true}
             >
               <TileLayer
-                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                key={activeLayer}
+                attribution={MAP_LAYERS[activeLayer]?.attribution || 'Google Satellite'}
+                url={MAP_LAYERS[activeLayer]?.url}
+                maxZoom={MAP_LAYERS[activeLayer]?.maxZoom || 20}
+                subdomains={MAP_LAYERS[activeLayer]?.subdomains || ['a', 'b', 'c']}
               />
 
               <MapBoundsController targetBounds={mapBounds} />
 
               {features.length > 0 && (
                 <GeoJSON
-                  key={`geojson-${features.length}-${selectedParcel?.properties?.parcel_id}-${entireHolding?.parcels?.length}`}
+                  key={`geojson-${features.length}-${selectedParcel?.properties?.parcel_id}-${entireHolding?.parcels?.length}-${activeLayer}`}
                   ref={geoJsonLayerRef}
                   data={{ type: 'FeatureCollection', features }}
                   style={getParcelStyle}
@@ -610,7 +726,11 @@ export default function GISPage() {
             display: 'flex', alignItems: 'center', justifyContent: 'space-between'
           }}>
             <span>{t('gis.map_footer_hint')}</span>
-            <span>OpenStreetMap Base Layer</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span>{MAP_LAYERS[activeLayer]?.icon}</span>
+              <strong style={{ color: '#1e3a8a' }}>{t(MAP_LAYERS[activeLayer]?.labelKey, MAP_LAYERS[activeLayer]?.defaultLabel)}</strong>
+              <span>({MAP_LAYERS[activeLayer]?.attribution})</span>
+            </span>
           </div>
 
         </div>

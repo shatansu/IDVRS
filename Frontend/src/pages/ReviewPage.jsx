@@ -131,10 +131,27 @@ export default function ReviewPage() {
 
   if (!state?.structuredData) return null;
 
-  const { documentId, filename, fileUrl, fileType, structuredData, documentType, classification, engineUsed, evidence } = state;
-  const { khata: rawKhata, owners: rawOwners, parcels: rawParcels, extraction_meta, validation } = structuredData;
+  /* State for Current Document & Batch Queue */
+  const [currentDoc, setCurrentDoc] = useState(() => ({
+    documentId: state.documentId,
+    filename: state.filename,
+    fileUrl: state.fileUrl,
+    fileType: state.fileType,
+    structuredData: state.structuredData,
+    documentType: state.documentType,
+    classification: state.classification,
+    engineUsed: state.engineUsed,
+    evidence: state.evidence,
+    pageCount: state.pageCount,
+  }));
+  const [batchQueue, setBatchQueue] = useState(() => state.batchQueue || []);
+  const [batchTotal] = useState(() => (state.batchQueue?.length || 0) + 1);
+  const [batchIndex, setBatchIndex] = useState(1);
 
-  /* State */
+  const { documentId, filename, fileUrl, fileType, structuredData, documentType, classification, engineUsed, evidence } = currentDoc;
+  const { khata: rawKhata, owners: rawOwners, parcels: rawParcels, extraction_meta, validation } = structuredData || {};
+
+  /* Field State */
   const [khata, setKhata] = useState(() => initKhata(rawKhata));
   const [owners, setOwners] = useState(() => initOwners(rawOwners));
   const [parcels, setParcels] = useState(() => initParcels(rawParcels));
@@ -265,9 +282,24 @@ export default function ReviewPage() {
       setHasEdits(false);
       showToast(t('review.save_success') + ` ID: #${res.data.khata_id}`, 'success');
 
-      setTimeout(() => {
-        navigate(`/records/${res.data.khata_id}`);
-      }, 1200);
+      if (batchQueue && batchQueue.length > 0) {
+        const nextDoc = batchQueue[0];
+        const remainingQueue = batchQueue.slice(1);
+        setTimeout(() => {
+          setCurrentDoc(nextDoc);
+          setKhata(initKhata(nextDoc.structuredData?.khata));
+          setOwners(initOwners(nextDoc.structuredData?.owners));
+          setParcels(initParcels(nextDoc.structuredData?.parcels));
+          setBatchQueue(remainingQueue);
+          setBatchIndex(prev => prev + 1);
+          setSaving(false);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }, 800);
+      } else {
+        setTimeout(() => {
+          navigate(`/records/${res.data.khata_id}`);
+        }, 1200);
+      }
     } catch (err) {
       const detail = err.response?.data?.detail;
       let errMsg = t('review.save_error');
@@ -301,6 +333,55 @@ export default function ReviewPage() {
         <div className={`gov-toast ${toast.type}`}>
           {toast.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
           <span>{toast.message}</span>
+        </div>
+      )}
+
+      {/* Batch Ingestion Queue Banner (Active when reviewing a batch) */}
+      {batchTotal > 1 && (
+        <div style={{
+          background: 'linear-gradient(135deg, #eff6ff 0%, #ecfdf5 100%)',
+          border: '1px solid #93c5fd',
+          borderRadius: '12px',
+          padding: '14px 20px',
+          marginBottom: '20px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '12px',
+          boxShadow: '0 2px 8px rgba(30, 58, 138, 0.06)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '8px',
+              background: '#1e3a8a',
+              color: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <Layers size={18} />
+            </div>
+            <div>
+              <p style={{ fontSize: '0.9rem', fontWeight: 800, color: '#1e3a8a', margin: 0 }}>
+                {t('review.batch_banner_title')} • {t('review.batch_banner_desc', { current: batchIndex, total: batchTotal, remaining: batchQueue.length })}
+              </p>
+              <p style={{ fontSize: '0.78rem', color: '#047857', margin: 0, fontWeight: 600 }}>
+                {filename} {batchQueue.length > 0 ? `(${batchQueue.length} more documents waiting in queue)` : '(Final document in batch!)'}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            className="btn-gov-secondary"
+            onClick={() => navigate('/records')}
+            style={{ fontSize: '0.8rem', padding: '5px 12px', background: '#ffffff' }}
+          >
+            {t('review.btn_finish_early')}
+          </button>
         </div>
       )}
 
@@ -380,7 +461,7 @@ export default function ReviewPage() {
             title="कीबोर्ड शॉर्टकट: Ctrl+S"
             style={{ padding: '10px 24px', fontSize: '0.9rem' }}
           >
-            <Save size={16} /> {saving ? t('review.saving') : `${t('review.save_btn')} (Ctrl+S)`}
+            <Save size={16} /> {saving ? t('review.saving') : batchQueue.length > 0 ? t('review.btn_save_next', { remaining: batchQueue.length }) : `${t('review.save_btn')} (Ctrl+S)`}
           </button>
         </div>
       </div>
@@ -922,7 +1003,7 @@ export default function ReviewPage() {
               disabled={saving}
               style={{ padding: '12px 32px', fontSize: '0.95rem' }}
             >
-              <Save size={18} /> {saving ? t('review.saving') : t('review.save_btn')}
+              <Save size={18} /> {saving ? t('review.saving') : batchQueue.length > 0 ? t('review.btn_save_next', { remaining: batchQueue.length }) : t('review.btn_save_final')}
             </button>
           </div>
 
