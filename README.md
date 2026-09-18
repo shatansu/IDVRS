@@ -345,14 +345,4 @@ SIH-Prototype_IDVRS/
 
 ---
 
-## 🏆 10. Hackathon Presentation & Pitch Tips
 
-When presenting IDVRS to judges:
-1. **Highlight Data Sovereignty**: Mention that land records are national security and citizen-privacy critical. IDVRS does not send sensitive ownership data to external foreign cloud APIs.
-2. **Emphasize Zero Hallucination**: Emphasize that generative LLMs often hallucinate numbers (e.g. changing 0.340 ha to 3.40 ha). Our rule-based information extraction guarantees 100% mathematical fidelity.
-3. **Showcase the HITL Console**: Highlight that no OCR in the world is 100% perfect on 50-year-old degraded paper. The Human-in-the-Loop review console with live confidence scores is the exact practical tool government revenue officers need to achieve 100% clean registries.
-
----
-
-## 📜 11. License & Acknowledgments
-Built for **Smart India Hackathon (SIH 26018)** under the guidelines of the **Ministry of Rural Development (Department of Land Resources - DoLR)** and the **Digital India Land Records Modernization Programme (DILRMP)**.
